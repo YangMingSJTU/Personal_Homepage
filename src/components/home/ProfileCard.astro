@@ -8,14 +8,12 @@ interface Props {
 const { profile } = Astro.props;
 const title = profile.displayTitle || "Personal Homepage";
 const signature = profile.signature || "Projects / About / Contact";
-const githubHref = profile.socials.github || "/contact";
 const links = profile.links?.length
-  ? profile.links.map((link) => (link.label === "GitHub" && !profile.socials.github ? { ...link, href: githubHref, external: false } : link))
+  ? profile.links.filter((link) => link.label !== "GitHub")
   : [
       { label: "Projects", href: "/projects" },
       { label: "About", href: "/about" },
-      { label: "Contact", href: "/contact" },
-      { label: "GitHub", href: githubHref, external: Boolean(profile.socials.github) }
+      { label: "Contact", href: "/contact" }
     ];
 ---
 

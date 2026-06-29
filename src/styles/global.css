@@ -69,6 +69,49 @@ a {
   padding: 88px 0;
 }
 
+.github-corner {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 200;
+  display: block;
+  width: 80px;
+  height: 80px;
+  color: #fff;
+  text-decoration: none;
+}
+
+.github-corner svg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: block;
+  width: 80px;
+  height: 80px;
+  border: 0;
+  fill: transparent;
+  color: currentColor;
+  filter: drop-shadow(0 0 18px rgba(255, 255, 255, 0.16));
+}
+
+.github-corner .octo-arm {
+  transform-origin: 130px 106px;
+}
+
+.github-corner:hover .octo-arm {
+  animation: octocat-wave 560ms ease-in-out;
+}
+
+@media (max-width: 500px) {
+  .github-corner:hover .octo-arm {
+    animation: none;
+  }
+
+  .github-corner .octo-arm {
+    animation: octocat-wave 560ms ease-in-out;
+  }
+}
+
 .content {
   position: relative;
   width: 100%;
@@ -264,6 +307,10 @@ a {
   transition: opacity 380ms ease, transform 720ms ease;
 }
 
+.content-intro.is-leaving {
+  pointer-events: none;
+}
+
 .content-intro.is-leaving #background {
   opacity: 0.68;
   transition: opacity 480ms ease;
@@ -348,6 +395,48 @@ a {
   opacity: 1;
 }
 
+.interactive-go-background {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  background: #04070b;
+}
+
+.interactive-go-background::before,
+.interactive-go-background::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  content: "";
+  pointer-events: none;
+}
+
+.interactive-go-background::before {
+  background:
+    radial-gradient(circle at 72% 18%, rgba(0, 229, 255, 0.17), transparent 24rem),
+    radial-gradient(circle at 24% 68%, rgba(200, 169, 106, 0.1), transparent 22rem);
+  mix-blend-mode: screen;
+}
+
+.interactive-go-background::after {
+  background:
+    linear-gradient(180deg, rgba(4, 7, 11, 0.06), rgba(4, 7, 11, 0.74)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 7px);
+  opacity: 0.72;
+}
+
+.interactive-go-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+
 .home-main {
   position: fixed;
   inset: 0;
@@ -372,6 +461,7 @@ a {
   justify-content: center;
   color: #93979e;
   text-align: center;
+  pointer-events: none;
 }
 
 .profile-card-inner {
@@ -443,7 +533,7 @@ a {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
   width: 100%;
   margin: 0;
@@ -464,6 +554,7 @@ a {
   color: #b6b6b6;
   font-size: 0.95rem;
   transition: color 180ms ease, text-shadow 180ms ease, transform 180ms ease;
+  pointer-events: auto;
 }
 
 .profile-card a:hover,
@@ -704,6 +795,23 @@ a {
   }
 }
 
+@keyframes octocat-wave {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+
+  20%,
+  60% {
+    transform: rotate(-25deg);
+  }
+
+  40%,
+  80% {
+    transform: rotate(10deg);
+  }
+}
+
 @keyframes letter-glow {
   0% {
     opacity: 0;
@@ -819,8 +927,8 @@ a {
   }
 
   .profile-card ul {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
     padding-bottom: 24px;
   }
 
