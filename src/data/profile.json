@@ -21,7 +21,7 @@
     },
     {
       "label": "GitHub",
-      "href": "https://github.com/YangMingSJTU",
+      "href": "https://github.com/YangMingSJTU/Personal_Homepage",
       "external": true
     }
   ],
@@ -32,7 +32,7 @@
   "principles": ["先让信息清楚，再让视觉惊艳", "用小工具验证真实需求", "保持结构化学习和复盘", "让作品长期可维护"],
   "skills": ["Astro", "React", "TypeScript", "Tailwind CSS", "LLM", "Automation", "Product Design"],
   "socials": {
-    "github": "https://github.com/YangMingSJTU",
+    "github": "https://github.com/YangMingSJTU/Personal_Homepage",
     "x": "https://x.com/",
     "telegram": ""
   }

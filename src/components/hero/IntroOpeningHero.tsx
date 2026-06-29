@@ -110,7 +110,7 @@ export default function IntroOpeningHero() {
     const fadeTimer = window.setTimeout(() => setIntroLoaded(true), 0);
     const subtitleTimer = window.setTimeout(() => setSubtitleLoaded(true), 270);
 
-    if (!window.__personalFluidScriptLoaded) {
+    if (!reduceMotion && !window.__personalFluidScriptLoaded) {
       const script = document.createElement("script");
       script.src = "/vendor/webgl-fluid-background.js";
       script.async = true;
