@@ -1,5 +1,5 @@
 ---
-import BoardBackground from "@/components/board/BoardBackground.astro";
+import SciFiGoBackground from "@/components/board/SciFiGoBackground.astro";
 import SiteLayout from "@/components/layout/SiteLayout.astro";
 import SectionHeader from "@/components/ui/SectionHeader.astro";
 import StoneButton from "@/components/ui/StoneButton.astro";
@@ -11,7 +11,7 @@ const profile = profileData as Profile;
 
 <SiteLayout title="About | 个人主页" description={profile.bio}>
   <section class="section-band relative">
-    <BoardBackground density="low" opacity={0.045} />
+    <SciFiGoBackground intensity="low" />
     <div class="content-wrap relative z-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr]">
       <div class="scifi-card p-7">
         <p class="font-mono text-xs uppercase tracking-normal text-cyan">Profile</p>

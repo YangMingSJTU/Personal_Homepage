@@ -1,17 +1,23 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 
 type StoneColor = "black" | "white";
-
-type Stone = {
-  col: number;
-  row: number;
-  color: StoneColor;
-  createdAt?: number;
-};
 
 type Point = {
   col: number;
   row: number;
+};
+
+type Stone = Point & {
+  color: StoneColor;
+};
+
+type Particle = {
+  x: number;
+  y: number;
+  radius: number;
+  speed: number;
+  phase: number;
+  tone: "cyan" | "gold" | "white";
 };
 
 type BoardLayout = {
@@ -59,11 +65,15 @@ const MOVE_SEQUENCE: Stone[] = [
   { col: 5, row: 5, color: "white" }
 ];
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const easeOutCubic = (value: number) => 1 - Math.pow(1 - value, 3);
+
 const getLayout = (width: number, height: number): BoardLayout => {
   const isNarrow = width < 720;
-  const size = Math.min(width * (isNarrow ? 0.92 : 0.78), height * (isNarrow ? 0.58 : 0.76), isNarrow ? 520 : 720);
+  const size = Math.min(width * (isNarrow ? 0.9 : 0.76), height * (isNarrow ? 0.52 : 0.72), isNarrow ? 520 : 760);
   const left = (width - size) / 2;
-  const top = isNarrow ? Math.max(36, height * 0.08) : Math.max(46, (height - size) * 0.42);
+  const top = isNarrow ? Math.max(26, height * 0.09) : Math.max(40, (height - size) * 0.38);
 
   return {
     left,
@@ -89,129 +99,230 @@ const nearestPoint = (layout: BoardLayout, x: number, y: number): Point | null =
   return { col, row };
 };
 
-const drawBoard = (ctx: CanvasRenderingContext2D, width: number, height: number, layout: BoardLayout) => {
-  ctx.clearRect(0, 0, width, height);
+const buildParticles = (): Particle[] =>
+  Array.from({ length: 90 }, (_, index) => {
+    const tone: Particle["tone"] = index % 9 === 0 ? "gold" : index % 3 === 0 ? "white" : "cyan";
 
+    return {
+      x: (Math.sin(index * 12.9898) * 43758.5453) % 1,
+      y: (Math.sin(index * 78.233) * 19341.711) % 1,
+      radius: 0.7 + (index % 5) * 0.32,
+      speed: 0.12 + (index % 7) * 0.035,
+      phase: index * 0.47,
+      tone
+    };
+  }).map((particle) => ({
+    ...particle,
+    x: Math.abs(particle.x),
+    y: Math.abs(particle.y)
+  }));
+
+const drawSpace = (ctx: CanvasRenderingContext2D, width: number, height: number, particles: Particle[], time: number, intro: number) => {
   const background = ctx.createLinearGradient(0, 0, width, height);
-  background.addColorStop(0, "#05070d");
-  background.addColorStop(0.48, "#0a1118");
-  background.addColorStop(1, "#030407");
+  background.addColorStop(0, "#02050a");
+  background.addColorStop(0.46, "#06101a");
+  background.addColorStop(1, "#020308");
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, width, height);
 
-  const boardGradient = ctx.createLinearGradient(layout.left, layout.top, layout.left + layout.size, layout.top + layout.size);
-  boardGradient.addColorStop(0, "#e4c68a");
-  boardGradient.addColorStop(0.5, "#cfa666");
-  boardGradient.addColorStop(1, "#ad8048");
+  const aura = ctx.createRadialGradient(width * 0.5, height * 0.38, 0, width * 0.5, height * 0.38, Math.max(width, height) * 0.68);
+  aura.addColorStop(0, `rgba(0, 229, 255, ${0.18 * intro})`);
+  aura.addColorStop(0.42, `rgba(84, 120, 255, ${0.08 * intro})`);
+  aura.addColorStop(1, "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = aura;
+  ctx.fillRect(0, 0, width, height);
 
-  ctx.save();
-  ctx.shadowColor = "rgba(0, 0, 0, 0.48)";
-  ctx.shadowBlur = 46;
-  ctx.shadowOffsetY = 22;
-  ctx.fillStyle = boardGradient;
-  ctx.fillRect(layout.left - layout.gap, layout.top - layout.gap, layout.size + layout.gap * 2, layout.size + layout.gap * 2);
-  ctx.restore();
+  particles.forEach((particle) => {
+    const drift = time * particle.speed;
+    const x = (particle.x * width + Math.sin(drift + particle.phase) * 26 + width) % width;
+    const y = (particle.y * height + Math.cos(drift * 0.72 + particle.phase) * 18 + height) % height;
+    const pulse = 0.45 + Math.sin(time * 1.8 + particle.phase) * 0.25;
+    const color = particle.tone === "gold" ? "200, 169, 106" : particle.tone === "white" ? "230, 248, 255" : "0, 229, 255";
 
-  ctx.save();
-  ctx.globalAlpha = 0.18;
-  ctx.strokeStyle = "#5d3d1e";
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 34; i += 1) {
-    const y = layout.top - layout.gap + i * (layout.size + layout.gap * 2) / 34;
+    ctx.save();
+    ctx.globalAlpha = intro * pulse;
+    ctx.fillStyle = `rgba(${color}, 0.62)`;
+    ctx.shadowColor = `rgba(${color}, 0.86)`;
+    ctx.shadowBlur = 16;
     ctx.beginPath();
-    ctx.moveTo(layout.left - layout.gap, y);
-    ctx.lineTo(layout.left + layout.size + layout.gap, y + Math.sin(i) * 5);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.strokeStyle = "rgba(30, 20, 12, 0.76)";
-  ctx.lineWidth = Math.max(1, layout.gap * 0.028);
-  for (let i = 0; i < 19; i += 1) {
-    const axis = layout.left + i * layout.gap;
-    const rowAxis = layout.top + i * layout.gap;
-
-    ctx.beginPath();
-    ctx.moveTo(axis, layout.top);
-    ctx.lineTo(axis, layout.top + layout.size);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(layout.left, rowAxis);
-    ctx.lineTo(layout.left + layout.size, rowAxis);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = "rgba(28, 19, 11, 0.88)";
-  STAR_POINTS.forEach((point) => {
-    const { x, y } = getBoardPoint(layout, point);
-    ctx.beginPath();
-    ctx.arc(x, y, Math.max(3, layout.gap * 0.11), 0, Math.PI * 2);
+    ctx.arc(x, y, particle.radius, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   });
 };
 
-const drawStone = (ctx: CanvasRenderingContext2D, layout: BoardLayout, stone: Stone, alpha = 1) => {
+const drawHologramBoard = (ctx: CanvasRenderingContext2D, layout: BoardLayout, intro: number, time: number) => {
+  const panelInset = layout.gap * 0.9;
+  const panelLeft = layout.left - panelInset;
+  const panelTop = layout.top - panelInset;
+  const panelSize = layout.size + panelInset * 2;
+  const panelRadius = Math.max(12, layout.gap * 0.3);
+
+  ctx.save();
+  ctx.globalAlpha = intro;
+  ctx.shadowColor = "rgba(0, 229, 255, 0.34)";
+  ctx.shadowBlur = 42;
+  ctx.fillStyle = "rgba(2, 12, 22, 0.64)";
+  ctx.strokeStyle = "rgba(0, 229, 255, 0.38)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.roundRect(panelLeft, panelTop, panelSize, panelSize, panelRadius);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  const lineProgress = easeOutCubic(intro);
+  const gridAlpha = 0.28 + Math.sin(time * 2.2) * 0.04;
+  const centerX = layout.left + layout.size / 2;
+  const centerY = layout.top + layout.size / 2;
+
+  for (let index = 0; index < 19; index += 1) {
+    const axis = layout.left + index * layout.gap;
+    const rowAxis = layout.top + index * layout.gap;
+    const revealDelay = index / 28;
+    const localProgress = clamp((lineProgress - revealDelay) / 0.66, 0, 1);
+
+    ctx.save();
+    ctx.globalAlpha = localProgress;
+    ctx.lineWidth = index === 0 || index === 18 ? 1.35 : 0.82;
+    ctx.shadowColor = index % 3 === 0 ? "rgba(200, 169, 106, 0.5)" : "rgba(0, 229, 255, 0.58)";
+    ctx.shadowBlur = index % 3 === 0 ? 10 : 14;
+    ctx.strokeStyle = index % 3 === 0 ? `rgba(200, 169, 106, ${gridAlpha})` : `rgba(0, 229, 255, ${gridAlpha + 0.08})`;
+
+    ctx.beginPath();
+    ctx.moveTo(axis, centerY - (layout.size / 2) * localProgress);
+    ctx.lineTo(axis, centerY + (layout.size / 2) * localProgress);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(centerX - (layout.size / 2) * localProgress, rowAxis);
+    ctx.lineTo(centerX + (layout.size / 2) * localProgress, rowAxis);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const scanY = layout.top + ((time * 82) % (layout.size + layout.gap * 2)) - layout.gap;
+  const scanGradient = ctx.createLinearGradient(layout.left, scanY - 18, layout.left, scanY + 18);
+  scanGradient.addColorStop(0, "rgba(0, 229, 255, 0)");
+  scanGradient.addColorStop(0.5, `rgba(0, 229, 255, ${0.24 * intro})`);
+  scanGradient.addColorStop(1, "rgba(0, 229, 255, 0)");
+  ctx.save();
+  ctx.fillStyle = scanGradient;
+  ctx.fillRect(panelLeft, scanY - 18, panelSize, 36);
+  ctx.restore();
+};
+
+const drawStarPoints = (ctx: CanvasRenderingContext2D, layout: BoardLayout, intro: number, time: number) => {
+  STAR_POINTS.forEach((point, index) => {
+    const { x, y } = getBoardPoint(layout, point);
+    const pulse = 0.6 + Math.sin(time * 2.6 + index) * 0.22;
+
+    ctx.save();
+    ctx.globalAlpha = intro;
+    ctx.shadowColor = index === 4 ? "rgba(200, 169, 106, 0.9)" : "rgba(0, 229, 255, 0.86)";
+    ctx.shadowBlur = index === 4 ? 20 : 15;
+    ctx.fillStyle = index === 4 ? `rgba(255, 221, 137, ${0.72 * pulse})` : `rgba(141, 247, 255, ${0.72 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(3.5, layout.gap * 0.12), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+};
+
+const drawEnergyStone = (ctx: CanvasRenderingContext2D, layout: BoardLayout, stone: Stone, time: number, alpha = 1) => {
   const { x, y } = getBoardPoint(layout, stone);
   const radius = layout.gap * 0.43;
-  const highlightX = x - radius * 0.36;
-  const highlightY = y - radius * 0.42;
-  const gradient = ctx.createRadialGradient(highlightX, highlightY, radius * 0.1, x, y, radius);
+  const outerColor = stone.color === "black" ? "0, 229, 255" : "230, 248, 255";
+  const coreGradient = ctx.createRadialGradient(x - radius * 0.26, y - radius * 0.32, radius * 0.08, x, y, radius);
 
   if (stone.color === "black") {
-    gradient.addColorStop(0, "#5b6370");
-    gradient.addColorStop(0.42, "#171b22");
-    gradient.addColorStop(1, "#020204");
+    coreGradient.addColorStop(0, "#657386");
+    coreGradient.addColorStop(0.38, "#121820");
+    coreGradient.addColorStop(1, "#020308");
   } else {
-    gradient.addColorStop(0, "#ffffff");
-    gradient.addColorStop(0.5, "#f0eadf");
-    gradient.addColorStop(1, "#b8afa2");
+    coreGradient.addColorStop(0, "#ffffff");
+    coreGradient.addColorStop(0.44, "#d9f8ff");
+    coreGradient.addColorStop(1, "#7692a1");
   }
 
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.shadowColor = "rgba(0, 0, 0, 0.42)";
-  ctx.shadowBlur = radius * 0.48;
-  ctx.shadowOffsetY = radius * 0.22;
-  ctx.fillStyle = gradient;
+  ctx.shadowColor = `rgba(${outerColor}, 0.58)`;
+  ctx.shadowBlur = radius * 1.25;
+  ctx.strokeStyle = `rgba(${outerColor}, 0.78)`;
+  ctx.lineWidth = 1.8;
   ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.arc(x, y, radius * (1.04 + Math.sin(time * 3.2 + x) * 0.025), 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = coreGradient;
+  ctx.beginPath();
+  ctx.arc(x, y, radius * 0.88, 0, Math.PI * 2);
   ctx.fill();
-  ctx.restore();
-};
 
-const drawRipple = (ctx: CanvasRenderingContext2D, layout: BoardLayout, stone: Stone, age: number) => {
-  const progress = Math.min(1, age / 720);
-  const { x, y } = getBoardPoint(layout, stone);
-
-  ctx.save();
-  ctx.globalAlpha = (1 - progress) * 0.42;
-  ctx.strokeStyle = stone.color === "black" ? "#0b1118" : "#fff8e7";
-  ctx.lineWidth = 2;
+  ctx.globalAlpha = alpha * 0.38;
+  ctx.strokeStyle = stone.color === "black" ? "rgba(0, 229, 255, 0.88)" : "rgba(255, 255, 255, 0.88)";
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(x, y, layout.gap * (0.58 + progress * 0.62), 0, Math.PI * 2);
+  ctx.arc(x, y, radius * 1.36, -time * 1.8, Math.PI * 1.35 - time * 1.8);
   ctx.stroke();
   ctx.restore();
 };
 
-const drawHover = (ctx: CanvasRenderingContext2D, layout: BoardLayout, hover: Point | null) => {
+const drawImpact = (ctx: CanvasRenderingContext2D, layout: BoardLayout, stone: Stone, age: number) => {
+  const progress = clamp(age / 780, 0, 1);
+  const { x, y } = getBoardPoint(layout, stone);
+  const color = stone.color === "black" ? "0, 229, 255" : "230, 248, 255";
+
+  ctx.save();
+  ctx.globalAlpha = (1 - progress) * 0.62;
+  ctx.strokeStyle = `rgba(${color}, 0.86)`;
+  ctx.shadowColor = `rgba(${color}, 0.72)`;
+  ctx.shadowBlur = 18;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, layout.gap * (0.5 + progress * 1.05), 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.globalAlpha = (1 - progress) * 0.3;
+  ctx.beginPath();
+  ctx.moveTo(x - layout.gap * 1.3, y);
+  ctx.lineTo(x + layout.gap * 1.3, y);
+  ctx.moveTo(x, y - layout.gap * 1.3);
+  ctx.lineTo(x, y + layout.gap * 1.3);
+  ctx.stroke();
+  ctx.restore();
+};
+
+const drawHover = (ctx: CanvasRenderingContext2D, layout: BoardLayout, hover: Point | null, time: number) => {
   if (!hover) {
     return;
   }
 
   const { x, y } = getBoardPoint(layout, hover);
+  const size = layout.gap * (0.38 + Math.sin(time * 5) * 0.03);
 
   ctx.save();
-  ctx.strokeStyle = "rgba(0, 229, 255, 0.72)";
+  ctx.strokeStyle = "rgba(0, 229, 255, 0.82)";
+  ctx.shadowColor = "rgba(0, 229, 255, 0.9)";
+  ctx.shadowBlur = 18;
   ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.arc(x, y, layout.gap * 0.33, 0, Math.PI * 2);
+  ctx.moveTo(x - size, y - size);
+  ctx.lineTo(x - size * 0.32, y - size);
+  ctx.moveTo(x + size, y - size);
+  ctx.lineTo(x + size * 0.32, y - size);
+  ctx.moveTo(x - size, y + size);
+  ctx.lineTo(x - size * 0.32, y + size);
+  ctx.moveTo(x + size, y + size);
+  ctx.lineTo(x + size * 0.32, y + size);
   ctx.stroke();
   ctx.restore();
 };
 
 export default function GoBoardHero({ primaryHref = "/products", secondaryHref = "/projects" }: GoBoardHeroProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const particles = useMemo(buildParticles, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -234,28 +345,35 @@ export default function GoBoardHero({ primaryHref = "/products", secondaryHref =
         return;
       }
 
+      const time = reducedMotion ? 3.2 : (now - startedAt) / 1000;
+      const intro = reducedMotion ? 1 : clamp(time / 1.8, 0, 1);
       const layout = getLayout(rect.width, rect.height);
-      drawBoard(ctx, rect.width, rect.height, layout);
+      drawSpace(ctx, rect.width, rect.height, particles, time, intro);
+      drawHologramBoard(ctx, layout, intro, time);
+      drawStarPoints(ctx, layout, intro, time);
 
-      const interval = 860;
-      const cycle = interval * (MOVE_SEQUENCE.length + 5);
-      const elapsed = reducedMotion ? cycle : (now - startedAt) % cycle;
-      const revealCount = reducedMotion ? 16 : Math.min(MOVE_SEQUENCE.length, 8 + Math.floor(elapsed / interval));
+      const interval = 720;
+      const introDelay = 1450;
+      const cycle = interval * (MOVE_SEQUENCE.length + 4);
+      const elapsed = reducedMotion ? cycle : Math.max(0, (now - startedAt - introDelay) % cycle);
+      const revealCount = reducedMotion ? 16 : Math.min(MOVE_SEQUENCE.length, Math.floor(elapsed / interval) + 1);
       const stones = MOVE_SEQUENCE.slice(0, revealCount);
 
-      stones.forEach((stone) => drawStone(ctx, layout, stone));
-      placedStones.forEach((stone) => drawStone(ctx, layout, stone, reducedMotion ? 1 : 0.92));
+      stones.forEach((stone, index) => {
+        const stoneIntro = reducedMotion ? 1 : clamp((elapsed - index * interval) / 360, 0, 1);
+        drawEnergyStone(ctx, layout, stone, time, intro * easeOutCubic(stoneIntro));
+      });
+      placedStones.forEach((stone) => drawEnergyStone(ctx, layout, stone, time, 0.95));
 
-      if (!reducedMotion && revealCount > 8 && revealCount <= MOVE_SEQUENCE.length) {
-        const latestMoveAt = (revealCount - 8) * interval;
+      if (!reducedMotion && revealCount > 0 && revealCount <= MOVE_SEQUENCE.length) {
         const latest = stones[stones.length - 1];
-        const age = elapsed - latestMoveAt;
-        if (latest && age >= 0 && age < 720) {
-          drawRipple(ctx, layout, latest, age);
+        const age = elapsed - (revealCount - 1) * interval;
+        if (latest && age >= 0 && age < 780) {
+          drawImpact(ctx, layout, latest, age);
         }
       }
 
-      drawHover(ctx, layout, hover);
+      drawHover(ctx, layout, hover, time);
     };
 
     const resizeCanvas = () => {
@@ -265,6 +383,13 @@ export default function GoBoardHero({ primaryHref = "/products", secondaryHref =
       canvas.height = Math.max(1, Math.floor(rect.height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       render(performance.now());
+    };
+
+    const stopLoop = () => {
+      if (animationId !== undefined) {
+        window.cancelAnimationFrame(animationId);
+        animationId = undefined;
+      }
     };
 
     const loop = (now: number) => {
@@ -277,13 +402,6 @@ export default function GoBoardHero({ primaryHref = "/products", secondaryHref =
     const startLoop = () => {
       if (animationId === undefined && !reducedMotion) {
         animationId = window.requestAnimationFrame(loop);
-      }
-    };
-
-    const stopLoop = () => {
-      if (animationId !== undefined) {
-        window.cancelAnimationFrame(animationId);
-        animationId = undefined;
       }
     };
 
@@ -318,8 +436,7 @@ export default function GoBoardHero({ primaryHref = "/products", secondaryHref =
         ...placedStones.slice(-5),
         {
           ...point,
-          color: placedStones.length % 2 === 0 ? "black" : "white",
-          createdAt: performance.now()
+          color: placedStones.length % 2 === 0 ? "black" : "white"
         }
       ];
       render(performance.now());
@@ -349,11 +466,11 @@ export default function GoBoardHero({ primaryHref = "/products", secondaryHref =
       motionQuery.removeEventListener("change", handleMotionChange);
       stopLoop();
     };
-  }, []);
+  }, [particles]);
 
   return (
-    <section className="go-hero" aria-label="动态围棋首页">
-      <canvas ref={canvasRef} className="go-board-canvas" aria-label="动态围棋棋盘" />
+    <section className="go-hero" aria-label="动态围棋首页" data-motion-scene="holographic-go">
+      <canvas ref={canvasRef} className="go-board-canvas" aria-label="动态围棋棋盘" data-visual="holographic-go-board" />
       <div className="go-hero-actions" aria-label="Primary entry points">
         <a className="go-hero-link go-hero-link-primary" href={primaryHref}>
           Products

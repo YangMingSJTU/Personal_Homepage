@@ -1,5 +1,5 @@
 ---
-import BoardBackground from "@/components/board/BoardBackground.astro";
+import SciFiGoBackground from "@/components/board/SciFiGoBackground.astro";
 import SiteLayout from "@/components/layout/SiteLayout.astro";
 import ProductCard from "@/components/products/ProductCard.astro";
 import SectionHeader from "@/components/ui/SectionHeader.astro";
@@ -11,7 +11,7 @@ const products = productsData as Product[];
 
 <SiteLayout title="Products | 个人主页" description="产品入口。">
   <section class="section-band relative">
-    <BoardBackground opacity={0.065} />
+    <SciFiGoBackground intensity="medium" />
     <div class="content-wrap relative z-10">
       <SectionHeader title="Products" />
       <div class="grid gap-5 md:grid-cols-2 lg:grid-cols-3">

@@ -1,5 +1,5 @@
 ---
-import BoardBackground from "@/components/board/BoardBackground.astro";
+import SciFiGoBackground from "@/components/board/SciFiGoBackground.astro";
 import SiteLayout from "@/components/layout/SiteLayout.astro";
 import ProjectCard from "@/components/projects/ProjectCard.astro";
 import SectionHeader from "@/components/ui/SectionHeader.astro";
@@ -11,7 +11,7 @@ const projects = projectsData as Project[];
 
 <SiteLayout title="Projects | 个人主页" description="项目入口。">
   <section class="section-band relative">
-    <BoardBackground density="low" opacity={0.052} />
+    <SciFiGoBackground intensity="medium" />
     <div class="content-wrap relative z-10">
       <SectionHeader title="Projects" />
       <div class="grid gap-5 lg:grid-cols-3">

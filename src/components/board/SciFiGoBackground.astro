@@ -1,0 +1,13 @@
+---
+interface Props {
+  intensity?: "low" | "medium";
+}
+
+const { intensity = "medium" } = Astro.props;
+---
+
+<div class={`scifi-go-background scifi-go-background-${intensity}`} data-scifi-go-background aria-hidden="true">
+  <div class="scifi-go-board-plane"></div>
+  <div class="scifi-go-star-field"></div>
+  <div class="scifi-go-scan"></div>
+</div>

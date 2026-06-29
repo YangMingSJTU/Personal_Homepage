@@ -5,7 +5,9 @@ test("renders the primary navigation and product entry points", async ({ page })
   const hero = page.getByLabel("动态围棋首页");
 
   await expect(page.getByRole("link", { name: "Home", exact: true })).toBeVisible();
+  await expect(hero).toHaveAttribute("data-motion-scene", "holographic-go");
   await expect(page.locator("canvas[aria-label='动态围棋棋盘']")).toBeVisible();
+  await expect(page.locator("canvas[aria-label='动态围棋棋盘']")).toHaveAttribute("data-visual", "holographic-go-board");
   await expect(hero.getByRole("link", { name: "Products", exact: true })).toBeVisible();
   await expect(hero.getByRole("link", { name: "Projects", exact: true })).toBeVisible();
   await expect(page.getByText("G.G. Lab")).toHaveCount(0);
@@ -27,6 +29,16 @@ test("renders a static go board for reduced motion users", async ({ page }) => {
   await expect(page.locator("canvas[aria-label='动态围棋棋盘']")).toBeVisible();
   await expect(hero.getByRole("link", { name: "Products", exact: true })).toBeVisible();
   await expect(hero.getByRole("link", { name: "Projects", exact: true })).toBeVisible();
+});
+
+test("uses the shared sci-fi go background on content pages", async ({ page }) => {
+  for (const path of ["/products", "/projects", "/about", "/contact"]) {
+    await page.goto(path);
+
+    await expect(page.locator("[data-scifi-go-background]")).toBeVisible();
+    await expect(page.getByText("G.G. Lab")).toHaveCount(0);
+    await expect(page.getByText("AI Learner & Product Builder")).toHaveCount(0);
+  }
 });
 
 test("keeps mobile layout within the viewport", async ({ page }) => {
