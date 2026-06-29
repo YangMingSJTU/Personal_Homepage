@@ -6,5 +6,6 @@
       "@/*": ["src/*"]
     },
     "types": ["vitest/globals"]
-  }
+  },
+  "exclude": ["dist", "public/vendor"]
 }

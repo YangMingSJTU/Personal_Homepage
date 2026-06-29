@@ -1,7 +1,30 @@
 {
   "name": "G.G.",
-  "labName": "G.G. Lab",
-  "headline": "AI Learner & Product Builder",
+  "displayTitle": "Personal Homepage",
+  "signature": "Projects / About / Contact",
+  "avatar": {
+    "src": "",
+    "alt": "Personal avatar"
+  },
+  "links": [
+    {
+      "label": "Projects",
+      "href": "/projects"
+    },
+    {
+      "label": "About",
+      "href": "/about"
+    },
+    {
+      "label": "Contact",
+      "href": "/contact"
+    },
+    {
+      "label": "GitHub",
+      "href": "https://github.com/",
+      "external": true
+    }
+  ],
   "subtitle": "我正在把 AI 学习、产品想法和工具实验，做成一个个可访问的作品。",
   "bio": "我是 G.G.，正在系统学习 AI 与产品构建。我关注如何把想法快速做成可用工具，也喜欢用结构化方式整理知识、实验和复盘。这个网站用于展示我的产品、项目和长期成长轨迹。",
   "email": "hello@gglab.dev",

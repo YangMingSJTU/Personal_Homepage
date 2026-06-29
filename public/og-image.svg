@@ -16,5 +16,5 @@
   <circle cx="468" cy="438" r="5" fill="#00E5FF"/>
   <path d="M96 104h360M96 526h500" stroke="#00E5FF" stroke-opacity="0.38"/>
   <text x="96" y="282" fill="#F2EEE3" font-family="Inter, Arial, sans-serif" font-size="82" font-weight="700">Personal Homepage</text>
-  <text x="102" y="358" fill="#CBD5E1" font-family="Inter, Arial, sans-serif" font-size="34">Products / Projects / Contact</text>
+  <text x="102" y="358" fill="#CBD5E1" font-family="Inter, Arial, sans-serif" font-size="34">Projects / About / Contact</text>
 </svg>

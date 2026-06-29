@@ -35,8 +35,17 @@ export type Project = {
 
 export type Profile = {
   name: string;
-  labName: string;
-  headline: string;
+  displayTitle?: string;
+  signature?: string;
+  avatar?: {
+    src?: string;
+    alt?: string;
+  };
+  links?: {
+    label: string;
+    href: string;
+    external?: boolean;
+  }[];
   subtitle: string;
   bio: string;
   email: string;
