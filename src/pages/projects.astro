@@ -1,0 +1,22 @@
+---
+import BoardBackground from "@/components/board/BoardBackground.astro";
+import SiteLayout from "@/components/layout/SiteLayout.astro";
+import ProjectCard from "@/components/projects/ProjectCard.astro";
+import SectionHeader from "@/components/ui/SectionHeader.astro";
+import projectsData from "@/data/projects.json";
+import type { Project } from "@/types/content";
+
+const projects = projectsData as Project[];
+---
+
+<SiteLayout title="Projects | 个人主页" description="项目入口。">
+  <section class="section-band relative">
+    <BoardBackground density="low" opacity={0.052} />
+    <div class="content-wrap relative z-10">
+      <SectionHeader title="Projects" />
+      <div class="grid gap-5 lg:grid-cols-3">
+        {projects.map((project) => <ProjectCard project={project} />)}
+      </div>
+    </div>
+  </section>
+</SiteLayout>

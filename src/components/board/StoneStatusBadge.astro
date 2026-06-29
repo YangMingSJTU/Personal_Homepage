@@ -1,0 +1,24 @@
+---
+import { getProductStatusMeta } from "@/lib/status";
+import type { ProductStatus } from "@/types/content";
+
+interface Props {
+  status: ProductStatus;
+}
+
+const { status } = Astro.props;
+const meta = getProductStatusMeta(status);
+
+const stoneClasses = {
+  black: "bg-black shadow-[inset_-3px_-4px_8px_rgba(255,255,255,0.08),0_0_18px_rgba(0,229,255,0.22)]",
+  white: "bg-stone shadow-[inset_-4px_-5px_10px_rgba(0,0,0,0.28),0_0_18px_rgba(125,170,255,0.22)]",
+  ghost: "bg-stone/30 ring-1 ring-stone/40",
+  ring: "border border-stone/70 bg-transparent",
+  muted: "bg-slate-500/40"
+};
+---
+
+<span class={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium status-${meta.tone}`} aria-label={meta.ariaLabel}>
+  <span class={`h-3 w-3 rounded-full ${stoneClasses[meta.stone]}`} aria-hidden="true"></span>
+  <span>{meta.label}</span>
+</span>

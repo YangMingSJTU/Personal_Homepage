@@ -1,0 +1,56 @@
+---
+const navItems = [
+  { href: "/", label: "Home" },
+  { href: "/about", label: "About" },
+  { href: "/products", label: "Products" },
+  { href: "/projects", label: "Projects" },
+  { href: "/contact", label: "Contact" }
+];
+
+const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
+---
+
+<header class="sticky top-0 z-50 border-b border-white/10 bg-void/78 backdrop-blur-xl">
+  <nav class="content-wrap flex min-h-16 flex-wrap items-center justify-between gap-4 py-3 md:flex-nowrap md:py-0" aria-label="Primary">
+    <a href="/" class="group inline-flex h-10 w-10 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-cyan/70" aria-label="Homepage">
+      <span class="relative h-7 w-7 rounded-full bg-stone shadow-gold transition group-hover:scale-105">
+        <span class="absolute left-[30%] top-[26%] h-2 w-2 rounded-full bg-white/70"></span>
+      </span>
+    </a>
+
+    <div class="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1 md:flex">
+      {
+        navItems.map((item) => {
+          const normalized = item.href === "/" ? "/" : item.href;
+          const active = currentPath === normalized;
+
+          return (
+            <a
+              href={item.href}
+              class:list={[
+                "rounded-full px-4 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-cyan/70",
+                active ? "bg-cyan/10 text-white shadow-glow" : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
+              ]}
+              aria-current={active ? "page" : undefined}
+            >
+              {item.label}
+            </a>
+          );
+        })
+      }
+    </div>
+
+    <div class="grid w-full grid-cols-5 gap-1 md:hidden" aria-label="Mobile navigation">
+      {
+        navItems.map((item) => (
+          <a
+            href={item.href}
+            class="rounded-full border border-white/10 bg-white/[0.04] px-2 py-2 text-center text-[11px] text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan/70"
+          >
+            {item.label}
+          </a>
+        ))
+      }
+    </div>
+  </nav>
+</header>

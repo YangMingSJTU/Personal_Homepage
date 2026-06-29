@@ -1,0 +1,36 @@
+---
+import GoBoardHero from "@/components/board/GoBoardHero";
+import SiteLayout from "@/components/layout/SiteLayout.astro";
+import ProductCard from "@/components/products/ProductCard.astro";
+import ProjectCard from "@/components/projects/ProjectCard.astro";
+import SectionHeader from "@/components/ui/SectionHeader.astro";
+import { getFeaturedProducts, getFeaturedProjects } from "@/lib/content";
+import productsData from "@/data/products.json";
+import projectsData from "@/data/projects.json";
+import type { Product, Project } from "@/types/content";
+
+const featuredProducts = getFeaturedProducts(productsData as Product[], 3);
+const featuredProjects = getFeaturedProjects(projectsData as Project[], 3);
+---
+
+<SiteLayout title="个人主页" description="产品、项目与联系方式入口。">
+  <GoBoardHero client:load primaryHref="/products" secondaryHref="/projects" />
+
+  <section class="section-band">
+    <div class="content-wrap">
+      <SectionHeader title="Products" />
+      <div class="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        {featuredProducts.map((product) => <ProductCard product={product} />)}
+      </div>
+    </div>
+  </section>
+
+  <section class="section-band border-y border-white/10 bg-white/[0.02]">
+    <div class="content-wrap">
+      <SectionHeader title="Projects" />
+      <div class="grid gap-5 lg:grid-cols-3">
+        {featuredProjects.map((project) => <ProjectCard project={project} />)}
+      </div>
+    </div>
+  </section>
+</SiteLayout>

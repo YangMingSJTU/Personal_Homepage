@@ -1,0 +1,38 @@
+[
+  {
+    "id": "ai-news-system",
+    "name": "AI News System",
+    "description": "自动聚合、筛选并推送 AI 领域重要动态。",
+    "problem": "解决信息过载和高质量信息筛选问题。",
+    "status": "Beta",
+    "category": ["AI", "Automation"],
+    "url": "https://example.com/ai-news-system",
+    "repo": "",
+    "featured": true,
+    "tech": ["RSS", "LLM", "Automation"]
+  },
+  {
+    "id": "screen-learning-agent",
+    "name": "Screen Learning Agent",
+    "description": "从录屏内容中提取学习重点并生成复盘笔记。",
+    "problem": "让学习过程更容易被回顾、检索和沉淀。",
+    "status": "Building",
+    "category": ["AI", "Learning"],
+    "url": "",
+    "repo": "https://github.com/",
+    "featured": true,
+    "tech": ["Whisper", "LLM", "Next.js"]
+  },
+  {
+    "id": "personal-lab-dashboard",
+    "name": "Personal Lab Dashboard",
+    "description": "集中管理产品想法、实验进展和学习复盘。",
+    "problem": "把分散的想法和项目状态变成可持续推进的系统。",
+    "status": "Idea",
+    "category": ["Tool", "Productivity"],
+    "url": "",
+    "repo": "",
+    "featured": true,
+    "tech": ["Astro", "Local Data"]
+  }
+]

@@ -1,0 +1,53 @@
+---
+import BoardBackground from "@/components/board/BoardBackground.astro";
+import SiteLayout from "@/components/layout/SiteLayout.astro";
+import SectionHeader from "@/components/ui/SectionHeader.astro";
+import StoneButton from "@/components/ui/StoneButton.astro";
+import profileData from "@/data/profile.json";
+import type { Profile } from "@/types/content";
+
+const profile = profileData as Profile;
+---
+
+<SiteLayout title="About | 个人主页" description={profile.bio}>
+  <section class="section-band relative">
+    <BoardBackground density="low" opacity={0.045} />
+    <div class="content-wrap relative z-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr]">
+      <div class="scifi-card p-7">
+        <p class="font-mono text-xs uppercase tracking-normal text-cyan">Profile</p>
+        <h1 class="mt-4 font-display text-4xl font-semibold text-white">{profile.name}</h1>
+        <p class="mt-6 text-sm leading-7 text-slate-300">{profile.bio}</p>
+        <div class="mt-7">
+          <StoneButton href="/contact" label="Contact" icon="mail" variant="primary" />
+        </div>
+      </div>
+
+      <div>
+        <SectionHeader eyebrow="About" title="Building small, useful AI products." description="我把学习、实验和产品构建放在同一个系统里，用清晰结构推进长期成长。" />
+
+        <div class="space-y-8">
+          <section>
+            <h2 class="font-display text-xl font-semibold text-white">Now</h2>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+              {profile.focus.map((item) => <div class="rounded-lg border border-white/10 bg-white/[0.035] p-4 text-sm text-slate-300"><span class="mr-2 inline-block h-2 w-2 rounded-full bg-stone"></span>{item}</div>)}
+            </div>
+          </section>
+
+          <section>
+            <h2 class="font-display text-xl font-semibold text-white">Skills</h2>
+            <div class="mt-4 flex flex-wrap gap-2">
+              {profile.skills.map((item) => <span class="rounded-full border border-cyan/20 bg-cyan/10 px-3 py-1.5 text-sm text-slate-200">{item}</span>)}
+            </div>
+          </section>
+
+          <section>
+            <h2 class="font-display text-xl font-semibold text-white">Principles</h2>
+            <div class="mt-4 grid gap-3">
+              {profile.principles.map((item) => <p class="border-l border-gold/40 pl-4 text-sm leading-6 text-slate-300">{item}</p>)}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
+</SiteLayout>

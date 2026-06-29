@@ -1,0 +1,17 @@
+---
+interface Props {
+  density?: "low" | "medium";
+  opacity?: number;
+  className?: string;
+}
+
+const { density = "medium", opacity = density === "low" ? 0.045 : 0.08, className = "" } = Astro.props;
+const size = density === "low" ? "56px" : "42px";
+---
+
+<div
+  class={`board-surface ${className}`}
+  style={`--board-opacity:${opacity};--board-size:${size};`}
+  aria-hidden="true"
+>
+</div>

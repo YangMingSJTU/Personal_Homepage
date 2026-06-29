@@ -1,0 +1,40 @@
+---
+import StoneStatusBadge from "@/components/board/StoneStatusBadge.astro";
+import SciFiCard from "@/components/ui/SciFiCard.astro";
+import StoneButton from "@/components/ui/StoneButton.astro";
+import { getPrimaryProductAction } from "@/lib/content";
+import type { Product } from "@/types/content";
+
+interface Props {
+  product: Product;
+}
+
+const { product } = Astro.props;
+const action = getPrimaryProductAction(product);
+---
+
+<SciFiCard className="lift-card h-full p-6">
+  <article class="relative z-10 flex h-full flex-col gap-5">
+    <div class="flex items-start justify-between gap-4">
+      <StoneStatusBadge status={product.status} />
+    </div>
+
+    <div>
+      <h3 class="font-display text-xl font-semibold text-white">{product.name}</h3>
+      <p class="mt-3 text-sm leading-6 text-slate-300">{product.description}</p>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      {product.category.map((item) => <span class="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">{item}</span>)}
+    </div>
+
+    {product.tech.length > 0 && (
+      <p class="font-mono text-xs leading-5 text-slate-500">Tech: {product.tech.join(" / ")}</p>
+    )}
+
+    <div class="mt-auto flex flex-wrap gap-3 pt-2">
+      <StoneButton href={action.href} label={action.label} disabled={action.disabled} icon="external" variant="primary" />
+      {product.repo && <StoneButton href={product.repo} label="Repo" icon="github" variant="secondary" />}
+    </div>
+  </article>
+</SciFiCard>

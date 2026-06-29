@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Personal Homepage Go board">
+  <defs>
+    <pattern id="board" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#263244" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="stone" cx="40%" cy="35%" r="65%">
+      <stop offset="0" stop-color="#F2EEE3"/>
+      <stop offset="0.36" stop-color="#8B909B"/>
+      <stop offset="0.72" stop-color="#070707"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#05070D"/>
+  <rect width="1200" height="630" fill="url(#board)" opacity="0.22"/>
+  <circle cx="900" cy="248" r="138" fill="url(#stone)"/>
+  <circle cx="180" cy="150" r="5" fill="#C8A96A"/>
+  <circle cx="468" cy="438" r="5" fill="#00E5FF"/>
+  <path d="M96 104h360M96 526h500" stroke="#00E5FF" stroke-opacity="0.38"/>
+  <text x="96" y="282" fill="#F2EEE3" font-family="Inter, Arial, sans-serif" font-size="82" font-weight="700">Personal Homepage</text>
+  <text x="102" y="358" fill="#CBD5E1" font-family="Inter, Arial, sans-serif" font-size="34">Products / Projects / Contact</text>
+</svg>

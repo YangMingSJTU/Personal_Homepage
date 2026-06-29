@@ -1,0 +1,50 @@
+[
+  {
+    "id": "screen-learning-agent",
+    "title": "Screen Learning Agent",
+    "summary": "从录屏内容中提取学习重点并生成复盘笔记。",
+    "background": "用于把视频学习过程转化为结构化知识资产。",
+    "category": "AI Tool",
+    "status": "Active",
+    "tech": ["Whisper", "LLM", "Next.js"],
+    "links": {
+      "demo": "",
+      "github": "https://github.com/"
+    },
+    "result": "完成可运行原型与流程验证。",
+    "featured": true,
+    "coordinate": "K-10"
+  },
+  {
+    "id": "ai-news-pipeline",
+    "title": "AI News Pipeline",
+    "summary": "自动筛选 AI 信息流并生成高价值摘要。",
+    "background": "降低 AI 信息追踪成本，提升信息筛选质量。",
+    "category": "Automation",
+    "status": "Completed",
+    "tech": ["Python", "RSS", "LLM"],
+    "links": {
+      "demo": "",
+      "github": "https://github.com/"
+    },
+    "result": "完成自动聚合、筛选、摘要和推送链路。",
+    "featured": true,
+    "coordinate": "B-07"
+  },
+  {
+    "id": "go-scifi-portfolio",
+    "title": "Go Sci-Fi Portfolio",
+    "summary": "围棋元素与深色科幻风格结合的个人网站系统。",
+    "background": "探索个人品牌、产品入口和项目展示的统一表达。",
+    "category": "Web",
+    "status": "Active",
+    "tech": ["Astro", "Tailwind CSS", "TypeScript"],
+    "links": {
+      "demo": "",
+      "github": "https://github.com/"
+    },
+    "result": "建立可持续扩展的个人作品入口。",
+    "featured": true,
+    "coordinate": "Q-16"
+  }
+]

@@ -1,0 +1,43 @@
+---
+import Footer from "./Footer.astro";
+import Header from "./Header.astro";
+import "../../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "个人主页",
+  description = "个人产品、项目和联系方式入口。"
+} = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, Astro.site || "https://personal-homepage.example.com");
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og-image.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <div class="page-shell">
+      <Header />
+      <main>
+        <slot />
+      </main>
+      <Footer />
+    </div>
+  </body>
+</html>
