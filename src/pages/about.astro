@@ -12,11 +12,11 @@ const profile = profileData as Profile;
 <SiteLayout title="About | 个人主页" description={profile.bio}>
   <section class="section-band relative">
     <SciFiGoBackground intensity="low" />
-    <div class="content-wrap relative z-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr]">
-      <div class="scifi-card p-7">
-        <p class="font-mono text-xs uppercase tracking-normal text-cyan">Profile</p>
-        <h1 class="mt-4 font-display text-4xl font-semibold text-white">{profile.name}</h1>
-        <p class="mt-6 text-sm leading-7 text-slate-300">{profile.bio}</p>
+    <div class="content-wrap relative z-10 page-grid page-grid-two">
+      <div class="surface-card p-7">
+        <p class="meta-label">Profile</p>
+        <h1 class="content-title-main">{profile.name}</h1>
+        <p class="body-copy mt-6 text-sm">{profile.bio}</p>
         <div class="mt-7">
           <StoneButton href="/contact" label="Contact" icon="mail" variant="primary" />
         </div>
@@ -27,23 +27,23 @@ const profile = profileData as Profile;
 
         <div class="space-y-8">
           <section>
-            <h2 class="font-display text-xl font-semibold text-white">Now</h2>
+            <h2 class="card-title">Now</h2>
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
-              {profile.focus.map((item) => <div class="rounded-lg border border-white/10 bg-white/[0.035] p-4 text-sm text-slate-300"><span class="mr-2 inline-block h-2 w-2 rounded-full bg-stone"></span>{item}</div>)}
+              {profile.focus.map((item) => <div class="info-tile"><span class="info-dot"></span>{item}</div>)}
             </div>
           </section>
 
           <section>
-            <h2 class="font-display text-xl font-semibold text-white">Skills</h2>
-            <div class="mt-4 flex flex-wrap gap-2">
-              {profile.skills.map((item) => <span class="rounded-full border border-cyan/20 bg-cyan/10 px-3 py-1.5 text-sm text-slate-200">{item}</span>)}
+            <h2 class="card-title">Skills</h2>
+            <div class="tag-list mt-4">
+              {profile.skills.map((item) => <span class="tag-pill">{item}</span>)}
             </div>
           </section>
 
           <section>
-            <h2 class="font-display text-xl font-semibold text-white">Principles</h2>
+            <h2 class="card-title">Principles</h2>
             <div class="mt-4 grid gap-3">
-              {profile.principles.map((item) => <p class="border-l border-gold/40 pl-4 text-sm leading-6 text-slate-300">{item}</p>)}
+              {profile.principles.map((item) => <p class="principle-line">{item}</p>)}
             </div>
           </section>
         </div>

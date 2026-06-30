@@ -13,14 +13,14 @@ const profile = profileData as Profile;
 <SiteLayout title="Contact | 个人主页" description="联系方式。">
   <section class="section-band relative min-h-[calc(100vh-12rem)]">
     <SciFiGoBackground intensity="low" />
-    <div class="content-wrap relative z-10 grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
+    <div class="content-wrap relative z-10 page-grid page-grid-two">
       <SectionHeader title="Contact" />
 
-      <div class="scifi-card p-7">
+      <div class="surface-card p-7">
         <div class="space-y-6">
           <div>
-            <p class="font-mono text-xs uppercase tracking-normal text-cyan">Email</p>
-            <p class="mt-3 break-all font-display text-2xl font-semibold text-white">{profile.email}</p>
+            <p class="meta-label">Email</p>
+            <p class="content-title-main mt-3 break-all text-2xl">{profile.email}</p>
           </div>
 
           <div class="flex flex-wrap gap-3">

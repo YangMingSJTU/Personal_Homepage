@@ -21,12 +21,11 @@ export default function CopyEmailButton({ email }: CopyEmailButtonProps) {
     <button
       type="button"
       onClick={copyEmail}
-      className="stone-button stone-button-primary group relative inline-flex min-h-11 items-center justify-center gap-2 overflow-hidden rounded-full border border-cyan/40 bg-cyan/10 px-5 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:bg-cyan/20 focus:outline-none focus:ring-2 focus:ring-cyan/70"
+      className="stone-button stone-button-primary"
       aria-label="Copy email"
     >
-      <span className="absolute left-3 h-2 w-2 rounded-full bg-stone/80 transition group-hover:scale-[2.8] group-hover:bg-cyan/25" />
-      <span className="relative ml-2">{copied ? "Copied" : "Copy email"}</span>
-      <Icon className="relative h-4 w-4" aria-hidden="true" />
+      <span className="stone-button-label">{copied ? "Copied" : "Copy email"}</span>
+      <Icon className="stone-button-icon h-4 w-4" aria-hidden="true" />
     </button>
   );
 }

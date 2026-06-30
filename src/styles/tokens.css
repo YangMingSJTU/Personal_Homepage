@@ -1,0 +1,47 @@
+:root {
+  color-scheme: dark;
+  --theme-name: soft-dark;
+
+  --color-void: #080c12;
+  --color-ink: #0d141d;
+  --color-panel: #111b26;
+  --color-panel-elevated: #162230;
+  --color-line: rgba(170, 192, 212, 0.16);
+  --color-line-strong: rgba(176, 209, 229, 0.28);
+  --color-stone: #edf7fb;
+  --color-cyan: #74e5f6;
+  --color-cyan-strong: #a9f3ff;
+  --color-gold: #d9bd78;
+  --color-violet: #8fa7ff;
+
+  --text-main: #f3f7fb;
+  --text-soft: #c2d0dd;
+  --text-muted: #8595a5;
+  --text-faint: #5f7183;
+
+  --site-bg:
+    radial-gradient(circle at 50% -12%, rgba(116, 229, 246, 0.13), transparent 35rem),
+    radial-gradient(circle at 82% 18%, rgba(143, 167, 255, 0.09), transparent 30rem),
+    linear-gradient(180deg, #0a0f16 0%, #0d141d 42%, #070a10 100%);
+  --surface-bg: rgba(17, 27, 38, 0.72);
+  --surface-bg-strong: rgba(20, 32, 45, 0.88);
+  --surface-border: rgba(184, 213, 232, 0.16);
+  --surface-border-strong: rgba(116, 229, 246, 0.34);
+  --surface-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  --surface-glow: 0 0 38px rgba(116, 229, 246, 0.12);
+
+  --go-bg: #0b121a;
+  --go-grid: rgba(116, 229, 246, 0.16);
+  --go-grid-shadow: rgba(116, 229, 246, 0.12);
+  --go-glow-primary: rgba(116, 229, 246, 0.13);
+  --go-glow-secondary: rgba(217, 189, 120, 0.09);
+  --go-ripple-primary: rgba(157, 241, 252, 0.62);
+  --go-ripple-secondary: rgba(238, 211, 142, 0.44);
+  --go-scan: rgba(255, 255, 255, 0.018);
+  --go-vignette-edge: rgba(2, 4, 8, 0.56);
+
+  --control-bg: rgba(244, 249, 252, 0.055);
+  --control-bg-hover: rgba(116, 229, 246, 0.115);
+  --control-border: rgba(190, 216, 232, 0.18);
+  --control-border-hover: rgba(116, 229, 246, 0.42);
+}

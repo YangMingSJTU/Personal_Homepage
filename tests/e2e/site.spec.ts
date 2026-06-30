@@ -36,10 +36,8 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(hero.locator(".shape-wrap svg.shape path")).toHaveAttribute("d", /^M -44,-50/);
   await expect(hero.locator("canvas[aria-label='动态围棋棋盘']")).toHaveCount(0);
   await expect(page.locator("[data-github-corner]")).toHaveAttribute("href", githubRepoHref);
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  const themeToggle = page.locator("[data-theme-toggle]");
-  await expect(themeToggle).toBeVisible();
-  await expect(themeToggle).toHaveAttribute("aria-label", "切换主题");
+  await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
+  await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
   await expect(page.locator("#main-view [data-interactive-go-background]")).toBeVisible();
   await expect(page.locator("#main-view [data-scifi-go-background]")).toHaveCount(0);
   await expect(page.getByText("G.G. Lab")).toHaveCount(0);
@@ -180,20 +178,14 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(background).toHaveAttribute("data-user-placement-effect-count", userEffectCountBeforeMiss || "");
 });
 
-test("toggles and persists the site theme", async ({ page }) => {
+test("uses a fixed soft-dark visual system", async ({ page }) => {
   await page.goto("/");
-  const themeToggle = page.locator("[data-theme-toggle]");
 
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  const box = await themeToggle.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.x + box!.width).toBeGreaterThan(300);
-  expect(box!.y + box!.height).toBeGreaterThan(580);
-
-  await themeToggle.click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
+  await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
   await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
+  await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
 });
 
 test("expands the GitHub corner like a holographic fold", async ({ page }) => {
@@ -214,13 +206,13 @@ test("expands the GitHub corner like a holographic fold", async ({ page }) => {
 
 test("uses the shared sci-fi go background on public content pages", async ({ page }) => {
   await page.goto("/");
-  await page.locator("[data-theme-toggle]").click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
 
   for (const path of ["/projects", "/about", "/contact"]) {
     await page.goto(path);
 
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
+    await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
     await expect(page.locator("[data-scifi-go-background]")).toBeVisible();
     await expect(page.getByText("G.G. Lab")).toHaveCount(0);
     await expect(page.getByText("AI Learner & Product Builder")).toHaveCount(0);
