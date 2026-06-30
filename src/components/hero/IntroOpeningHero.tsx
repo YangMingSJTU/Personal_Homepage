@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import anime from "animejs/lib/anime.es.js";
+import { withBase } from "@/lib/sitePath";
 
 declare global {
   interface Window {
@@ -40,7 +41,7 @@ const fluidConfig = {
 
 const introTitle = "Personal Homepage";
 const introSubtitle = "Projects / About";
-const baseUrl = import.meta.env.BASE_URL;
+const fluidScriptSrc = withBase("/vendor/webgl-fluid-background.js");
 const shapePath =
   "M -44,-50 C -52.71,28.52 15.86,8.186 184,14.69 383.3,22.39 462.5,12.58 638,14 835.5,15.6 987,6.4 1194,13.86 1661,30.68 1652,-36.74 1582,-140.1 1512,-243.5 15.88,-589.5 -44,-50 Z";
 const shapeTargetPath =
@@ -113,7 +114,7 @@ export default function IntroOpeningHero() {
 
     if (!reduceMotion && !window.__personalFluidScriptLoaded) {
       const script = document.createElement("script");
-      script.src = `${baseUrl}vendor/webgl-fluid-background.js`;
+      script.src = fluidScriptSrc;
       script.async = true;
       script.dataset.webglFluidLoader = "true";
       document.body.appendChild(script);

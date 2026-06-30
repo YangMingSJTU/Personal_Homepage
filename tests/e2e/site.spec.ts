@@ -43,6 +43,16 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(hero.locator(".arrow.arrow-2")).toBeVisible();
   await expect(hero.locator(".shape-wrap svg.shape path")).toHaveAttribute("d", /^M -44,-50/);
   await expect(hero.locator("canvas[aria-label='动态围棋棋盘']")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Array.from(document.scripts).some((script) =>
+          script.src.includes("/Personal_Homepage/vendor/webgl-fluid-background.js")
+        )
+      )
+    )
+    .toBe(true);
+  await expect.poll(() => page.evaluate(() => typeof window.__stopWebglFluidBackground)).toBe("function");
   await expect(page.locator("[data-github-corner]")).toHaveAttribute("href", githubRepoHref);
   await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
   await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
