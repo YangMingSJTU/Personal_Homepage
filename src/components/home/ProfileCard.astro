@@ -7,13 +7,12 @@ interface Props {
 
 const { profile } = Astro.props;
 const title = profile.displayTitle || "Personal Homepage";
-const signature = profile.signature || "Projects / About / Contact";
+const signature = profile.signature || "Projects / About";
 const links = profile.links?.length
   ? profile.links.filter((link) => link.label !== "GitHub")
   : [
       { label: "Projects", href: "/projects" },
-      { label: "About", href: "/about" },
-      { label: "Contact", href: "/contact" }
+      { label: "About", href: "/about" }
     ];
 ---
 

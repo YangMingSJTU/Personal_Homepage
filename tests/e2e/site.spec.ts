@@ -14,6 +14,8 @@ async function getNumericAttribute(locator: Locator, name: string) {
 }
 
 const githubRepoHref = "https://github.com/YangMingSJTU/Personal_Homepage";
+const profileSignature = "Projects / About";
+const profileAvatarSrc = "/images/avatar-holy-grail.png";
 
 test("renders the fluid opening and profile-card main view", async ({ page }) => {
   await page.goto("/");
@@ -29,7 +31,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(hero.locator(".wrap.fade")).toHaveClass(/in/);
   await expect(hero.locator(".content-title")).toHaveText("Personal Homepage");
   await expect(hero.locator("[data-intro-subtitle]")).toBeVisible();
-  await expect(hero.locator("[data-intro-subtitle] span")).toHaveCount("Projects / About / Contact".length);
+  await expect(hero.locator("[data-intro-subtitle] span")).toHaveCount(profileSignature.length);
   await expect(hero.getByRole("link", { name: "进入主视图" })).toBeVisible();
   await expect(hero.locator(".arrow.arrow-1")).toBeVisible();
   await expect(hero.locator(".arrow.arrow-2")).toBeVisible();
@@ -49,10 +51,12 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   const profileCard = page.locator("[data-profile-card]");
   await expect(profileCard).toBeInViewport();
   await expect(profileCard.getByRole("heading", { name: "Personal Homepage" })).toBeVisible();
-  await expect(profileCard.getByText("Projects / About / Contact")).toBeVisible();
+  await expect(profileCard.getByText(profileSignature)).toBeVisible();
+  await expect(profileCard.locator("img.profile-avatar")).toHaveAttribute("src", profileAvatarSrc);
+  await expect(profileCard.locator("img.profile-avatar")).toHaveAttribute("alt", "Holy grail avatar");
   await expect(profileCard.getByRole("link", { name: "Projects", exact: true })).toBeVisible();
   await expect(profileCard.getByRole("link", { name: "About", exact: true })).toBeVisible();
-  await expect(profileCard.getByRole("link", { name: "Contact", exact: true })).toBeVisible();
+  await expect(profileCard.getByRole("link", { name: "Contact", exact: true })).toHaveCount(0);
   await expect(profileCard.getByRole("link", { name: "GitHub", exact: true })).toHaveCount(0);
 });
 

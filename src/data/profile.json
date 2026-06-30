@@ -1,10 +1,10 @@
 {
   "name": "G.G.",
   "displayTitle": "Personal Homepage",
-  "signature": "Projects / About / Contact",
+  "signature": "Projects / About",
   "avatar": {
-    "src": "",
-    "alt": "Personal avatar"
+    "src": "/images/avatar-holy-grail.png",
+    "alt": "Holy grail avatar"
   },
   "links": [
     {
@@ -14,10 +14,6 @@
     {
       "label": "About",
       "href": "/about"
-    },
-    {
-      "label": "Contact",
-      "href": "/contact"
     },
     {
       "label": "GitHub",
