@@ -1,4 +1,6 @@
 ---
+import { withBase } from "@/lib/sitePath";
+
 const year = new Date().getFullYear();
 ---
 
@@ -6,8 +8,8 @@ const year = new Date().getFullYear();
   <div class="content-wrap site-footer-inner">
     <p>© {year}</p>
     <div class="site-footer-links">
-      <a href="/projects">Projects</a>
-      <a href="/contact">Contact</a>
+      <a href={withBase("/projects")}>Projects</a>
+      <a href={withBase("/contact")}>Contact</a>
     </div>
   </div>
 </footer>

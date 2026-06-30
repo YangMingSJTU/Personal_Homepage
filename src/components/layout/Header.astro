@@ -1,4 +1,6 @@
 ---
+import { getPathWithoutBase, withBase } from "@/lib/sitePath";
+
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/about", label: "About" },
@@ -6,7 +8,7 @@ const navItems = [
   { href: "/contact", label: "Contact" }
 ];
 
-const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
+const currentPath = getPathWithoutBase(Astro.url.pathname);
 const isHome = currentPath === "/";
 ---
 
@@ -14,7 +16,7 @@ const isHome = currentPath === "/";
   !isHome && (
     <header class="site-header">
       <nav class="content-wrap site-nav" aria-label="Primary">
-        <a href="/" class="site-logo" aria-label="Homepage">
+        <a href={withBase("/")} class="site-logo" aria-label="Homepage">
           <span class="site-logo-stone"></span>
         </a>
 
@@ -25,7 +27,7 @@ const isHome = currentPath === "/";
 
             return (
               <a
-                href={item.href}
+                href={withBase(item.href)}
                 class:list={[
                   "nav-link",
                   active && "nav-link-active"
@@ -41,7 +43,7 @@ const isHome = currentPath === "/";
         <div class="mobile-nav" aria-label="Mobile navigation">
           {navItems.map((item) => (
             <a
-              href={item.href}
+              href={withBase(item.href)}
               class="mobile-nav-link"
             >
               {item.label}

@@ -4,6 +4,7 @@ import SiteLayout from "@/components/layout/SiteLayout.astro";
 import SectionHeader from "@/components/ui/SectionHeader.astro";
 import StoneButton from "@/components/ui/StoneButton.astro";
 import profileData from "@/data/profile.json";
+import { withBase } from "@/lib/sitePath";
 import type { Profile } from "@/types/content";
 
 const profile = profileData as Profile;
@@ -18,7 +19,7 @@ const profile = profileData as Profile;
         <h1 class="content-title-main">{profile.name}</h1>
         <p class="body-copy mt-6 text-sm">{profile.bio}</p>
         <div class="mt-7">
-          <StoneButton href="/contact" label="Contact" icon="mail" variant="primary" />
+          <StoneButton href={withBase("/contact")} label="Contact" icon="mail" variant="primary" />
         </div>
       </div>
 

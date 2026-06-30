@@ -1,6 +1,7 @@
 ---
 import Footer from "./Footer.astro";
 import Header from "./Header.astro";
+import { withBase } from "@/lib/sitePath";
 import "../../styles/global.css";
 
 interface Props {
@@ -13,7 +14,8 @@ const {
   description = "个人产品、项目和联系方式入口。"
 } = Astro.props;
 
-const canonical = new URL(Astro.url.pathname, Astro.site || "https://personal-homepage.example.com");
+const canonical = new URL(withBase(Astro.url.pathname), Astro.site || "https://yangmingsjtu.github.io");
+const ogImage = new URL(withBase("/og-image.svg"), canonical).toString();
 ---
 
 <!doctype html>
@@ -23,11 +25,11 @@ const canonical = new URL(Astro.url.pathname, Astro.site || "https://personal-ho
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href={withBase("/favicon.svg")} type="image/svg+xml" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/og-image.svg" />
+    <meta property="og:image" content={ogImage} />
     <meta name="twitter:card" content="summary_large_image" />
     <title>{title}</title>
   </head>

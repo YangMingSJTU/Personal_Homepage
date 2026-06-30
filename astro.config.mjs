@@ -3,7 +3,8 @@ import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
 
 export default defineConfig({
-  site: "https://personal-homepage.example.com",
+  site: "https://yangmingsjtu.github.io",
+  base: "/Personal_Homepage",
   devToolbar: {
     enabled: false
   },

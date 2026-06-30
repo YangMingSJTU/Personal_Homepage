@@ -1,5 +1,6 @@
 ---
 import type { Profile } from "@/types/content";
+import { withBase } from "@/lib/sitePath";
 
 interface Props {
   profile: Profile;
@@ -21,7 +22,7 @@ const links = profile.links?.length
     <header>
       {
         profile.avatar?.src ? (
-          <img class="profile-avatar" src={profile.avatar.src} width="112" height="112" alt={profile.avatar.alt || title} />
+          <img class="profile-avatar" src={withBase(profile.avatar.src)} width="112" height="112" alt={profile.avatar.alt || title} />
         ) : (
           <div class="profile-avatar profile-avatar-fallback" aria-hidden="true">
             <span></span>
@@ -37,7 +38,7 @@ const links = profile.links?.length
         {
           links.map((link) => (
             <li>
-              <a href={link.href} target={link.external ? "_blank" : undefined} rel={link.external ? "noopener noreferrer" : undefined}>
+              <a href={withBase(link.href)} target={link.external ? "_blank" : undefined} rel={link.external ? "noopener noreferrer" : undefined}>
                 <span>{link.label}</span>
               </a>
             </li>

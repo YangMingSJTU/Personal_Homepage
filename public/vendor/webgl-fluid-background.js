@@ -776,7 +776,13 @@ let bloomFramebuffers = [];
 let sunrays;
 let sunraysTemp;
 
-let ditheringTexture = createTextureAsync('/vendor/background.png');
+let vendorAssetBase = (() => {
+	let currentScript = document.currentScript;
+	let source = currentScript && currentScript.src ? currentScript.src : '/vendor/webgl-fluid-background.js';
+	return source.slice(0, source.lastIndexOf('/') + 1);
+})();
+
+let ditheringTexture = createTextureAsync(`${vendorAssetBase}background.png`);
 
 const blurProgram = new Program(blurVertexShader, blurShader);
 const copyProgram = new Program(baseVertexShader, copyShader);

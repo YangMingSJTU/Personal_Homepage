@@ -15,10 +15,16 @@ async function getNumericAttribute(locator: Locator, name: string) {
 
 const githubRepoHref = "https://github.com/YangMingSJTU/Personal_Homepage";
 const profileSignature = "Projects / About";
-const profileAvatarSrc = "/images/avatar-holy-grail.png";
+const siteBase = "/Personal_Homepage";
+const profileAvatarSrc = `${siteBase}/images/avatar-holy-grail.png`;
+
+function pagePath(path: string) {
+  if (path === "/") return `${siteBase}/`;
+  return `${siteBase}${path}`;
+}
 
 test("renders the fluid opening and profile-card main view", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(pagePath("/"));
   const hero = page.locator('[data-motion-scene="intro-opening"]');
 
   await expect(page.locator("body > header")).toHaveCount(0);
@@ -62,7 +68,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
 
 test("renders a static intro and go-backed main view for reduced motion users", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await page.goto(pagePath("/"));
   const hero = page.locator('[data-motion-scene="intro-opening"]');
   const background = page.locator("#main-view [data-interactive-go-background]");
 
@@ -110,7 +116,7 @@ test("renders a static intro and go-backed main view for reduced motion users", 
 });
 
 test("enters the go-backed main view from the fluid opening", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(pagePath("/"));
   const hero = page.locator('[data-motion-scene="intro-opening"]');
   const background = page.locator("#main-view [data-interactive-go-background]");
 
@@ -227,7 +233,7 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
 });
 
 test("uses a fixed soft-dark visual system", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(pagePath("/"));
 
   await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
   await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
@@ -237,7 +243,7 @@ test("uses a fixed soft-dark visual system", async ({ page }) => {
 });
 
 test("expands the GitHub corner like a holographic fold", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(pagePath("/"));
   const corner = page.locator("[data-github-corner]");
   const fold = corner.locator("[data-github-fold]");
   const edge = corner.locator("[data-github-fold-edge]");
@@ -253,11 +259,11 @@ test("expands the GitHub corner like a holographic fold", async ({ page }) => {
 });
 
 test("uses the shared sci-fi go background on public content pages", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(pagePath("/"));
   await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
 
   for (const path of ["/projects", "/about", "/contact"]) {
-    await page.goto(path);
+    await page.goto(pagePath(path));
 
     await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
     await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
@@ -271,7 +277,7 @@ test("uses the shared sci-fi go background on public content pages", async ({ pa
 });
 
 test("does not expose products as a public page", async ({ page }) => {
-  const response = await page.goto("/products");
+  const response = await page.goto(pagePath("/products"));
 
   expect(response?.status()).toBe(404);
   await expect(page.getByRole("heading", { name: "Products" })).toHaveCount(0);
@@ -279,14 +285,14 @@ test("does not expose products as a public page", async ({ page }) => {
 
 test("keeps mobile layout within the viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto(pagePath("/"));
 
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(scrollWidth).toBeLessThanOrEqual(390);
 });
 
 test("contact page exposes a copy email action", async ({ page }) => {
-  await page.goto("/contact");
+  await page.goto(pagePath("/contact"));
 
   await expect(page.getByRole("heading", { name: "Contact" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Copy email/i })).toBeVisible();
