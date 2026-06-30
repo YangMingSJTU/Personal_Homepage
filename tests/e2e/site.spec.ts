@@ -72,6 +72,13 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await expect(background).toHaveAttribute("data-user-placement-effect-count", "0");
   await expect(background).toHaveAttribute("data-active-placement-effect-count", "0");
   await expect(background).toHaveAttribute("data-placement-effect-visual", "grid-distortion-wave");
+  await expect(background).toHaveAttribute("data-visible-occupancy", /^[0-9]+(\.\d+)?$/);
+  await expect(background).toHaveAttribute("data-visible-stone-count", /^[0-9]+$/);
+  await expect(background).toHaveAttribute("data-visible-capacity", /^[1-9]\d*$/);
+  await expect(background).toHaveAttribute("data-random-placement-mode", /^(normal|throttled|paused)$/);
+  await expect(background).toHaveAttribute("data-capture-count", "0");
+  await expect(background).toHaveAttribute("data-active-capture-effect-count", "0");
+  await expect(background).toHaveAttribute("data-last-captured-color", "none");
   const initialStoneCount = await background.getAttribute("data-stone-count");
   const initialEffectCount = await background.getAttribute("data-placement-effect-count");
   await page.waitForTimeout(1200);
@@ -94,6 +101,8 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await expect(background).toHaveAttribute("data-placement-effect-count", initialEffectCount || "");
   await expect(background).toHaveAttribute("data-user-placement-effect-count", "0");
   await expect(background).toHaveAttribute("data-active-placement-effect-count", "0");
+  await expect(background).toHaveAttribute("data-capture-count", "0");
+  await expect(background).toHaveAttribute("data-active-capture-effect-count", "0");
 });
 
 test("enters the go-backed main view from the fluid opening", async ({ page }) => {
@@ -116,6 +125,13 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(background).toHaveAttribute("data-grid-angle", "0.0000");
   await expect(background).toHaveAttribute("data-placement-effect-visual", "grid-distortion-wave");
   await expect(background).toHaveAttribute("data-user-placement-effect-count", "0");
+  await expect(background).toHaveAttribute("data-visible-occupancy", /^[0-9]+(\.\d+)?$/);
+  await expect(background).toHaveAttribute("data-visible-stone-count", /^[0-9]+$/);
+  await expect(background).toHaveAttribute("data-visible-capacity", /^[1-9]\d*$/);
+  await expect(background).toHaveAttribute("data-random-placement-mode", "normal");
+  await expect(background).toHaveAttribute("data-capture-count", "0");
+  await expect(background).toHaveAttribute("data-active-capture-effect-count", "0");
+  await expect(background).toHaveAttribute("data-last-captured-color", "none");
   const effectCountBeforeRandom = await getNumericAttribute(background, "data-placement-effect-count");
   await expect
     .poll(async () => getNumericAttribute(background, "data-placement-effect-count"))
@@ -149,6 +165,13 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
       .poll(async () => getNumericAttribute(background, "data-user-placement-effect-count"))
       .toBeGreaterThan(userEffectCountBeforeUser);
 
+    const userCountBeforeOccupied = await background.getAttribute("data-user-stone-count");
+    const userEffectCountBeforeOccupied = await background.getAttribute("data-user-placement-effect-count");
+    await page.mouse.click(center.x, center.y, { button: "left" });
+    await expect(background).toHaveAttribute("data-last-placement", "occupied");
+    await expect(background).toHaveAttribute("data-user-stone-count", userCountBeforeOccupied || "");
+    await expect(background).toHaveAttribute("data-user-placement-effect-count", userEffectCountBeforeOccupied || "");
+
     const cell = Number(await background.getAttribute("data-cell-size"));
     const effectCountBeforeWhite = await getNumericAttribute(background, "data-placement-effect-count");
     const userEffectCountBeforeWhite = await getNumericAttribute(background, "data-user-placement-effect-count");
@@ -162,6 +185,27 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
     await expect
       .poll(async () => getNumericAttribute(background, "data-user-placement-effect-count"))
       .toBeGreaterThan(userEffectCountBeforeWhite);
+
+    const captureCountBefore = await getNumericAttribute(background, "data-capture-count");
+    const captureX = center.x + cell * 4;
+    const captureY = center.y + cell * 4;
+    await page.mouse.click(captureX, captureY, { button: "right" });
+    await expect(background).toHaveAttribute("data-last-placement", "hit");
+    await page.mouse.click(captureX + cell, captureY, { button: "left" });
+    await expect(background).toHaveAttribute("data-last-placement", "hit");
+    await page.mouse.click(captureX - cell, captureY, { button: "left" });
+    await expect(background).toHaveAttribute("data-last-placement", "hit");
+    await page.mouse.click(captureX, captureY + cell, { button: "left" });
+    await expect(background).toHaveAttribute("data-last-placement", "hit");
+    await page.mouse.click(captureX, captureY - cell, { button: "left" });
+    await expect(background).toHaveAttribute("data-last-placement", "hit");
+    await expect
+      .poll(async () => getNumericAttribute(background, "data-capture-count"))
+      .toBeGreaterThan(captureCountBefore);
+    await expect(background).toHaveAttribute("data-last-captured-color", "white");
+    await expect
+      .poll(async () => getNumericAttribute(background, "data-active-capture-effect-count"))
+      .toBeGreaterThan(0);
   }
 
   const cell = Number(await background.getAttribute("data-cell-size"));

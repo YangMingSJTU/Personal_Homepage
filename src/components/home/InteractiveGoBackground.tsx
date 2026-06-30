@@ -1,22 +1,25 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  canPlaceStone,
+  getCapturedOpponentKeys,
+  getRandomPlacementMode,
+  getVisibleOccupancy,
+  stoneKey,
+  type BoardStone,
+  type RandomPlacementMode,
+  type StoneColor,
+  type StoneSource,
+  type VisibleBounds
+} from "./goRules";
 
-type StoneColor = "black" | "white";
-type StoneSource = "user" | "random";
-
-type Stone = {
-  x: number;
-  y: number;
-  color: StoneColor;
-  source: StoneSource;
-  createdAt: number;
-};
+type Stone = BoardStone;
 
 type HoverPoint = {
   x: number;
   y: number;
 } | null;
 
-type LastPlacement = "hit" | "miss" | "none";
+type LastPlacement = "hit" | "miss" | "occupied" | "none";
 type PointerKind = "mouse" | "touch";
 
 type PlacementEffect = {
@@ -28,9 +31,14 @@ type PlacementEffect = {
   expiresAt: number;
 };
 
-const maxStones = 90;
+type CaptureEffect = Stone & {
+  capturedAt: number;
+  expiresAt: number;
+};
+
 const randomIntervalMs = 1100;
 const placementEffectMs = 1100;
+const captureEffectMs = 560;
 const stoneEntryMs = 260;
 
 function clamp(value: number, min: number, max: number) {
@@ -39,10 +47,6 @@ function clamp(value: number, min: number, max: number) {
 
 function getCellSize(width: number) {
   return Math.min(52, Math.max(38, width * 0.05));
-}
-
-function stoneKey(x: number, y: number) {
-  return `${x}:${y}`;
 }
 
 function createSeededRandom(seed: number) {
@@ -113,7 +117,9 @@ function drawStone(
   screenX: number,
   screenY: number,
   radius: number,
-  scale: number
+  scale: number,
+  opacity = 1,
+  glowBoost = 1
 ) {
   const scaledRadius = radius * scale;
   const gradient = ctx.createRadialGradient(screenX - scaledRadius * 0.32, screenY - scaledRadius * 0.38, scaledRadius * 0.12, screenX, screenY, scaledRadius);
@@ -130,13 +136,47 @@ function drawStone(
   }
 
   ctx.save();
-  ctx.shadowBlur = scaledRadius * (scale > 1 ? 1.35 : 0.9);
+  ctx.globalAlpha = opacity;
+  ctx.shadowBlur = scaledRadius * (scale > 1 ? 1.35 : 0.9) * glowBoost;
   ctx.fillStyle = gradient;
   ctx.beginPath();
   ctx.arc(screenX, screenY, scaledRadius, 0, Math.PI * 2);
   ctx.fill();
   ctx.lineWidth = 1;
   ctx.strokeStyle = stone.color === "black" ? "rgba(255, 255, 255, 0.14)" : "rgba(255, 255, 255, 0.72)";
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCaptureEffect(
+  ctx: CanvasRenderingContext2D,
+  effect: CaptureEffect,
+  screenX: number,
+  screenY: number,
+  radius: number,
+  cell: number,
+  now: number,
+  ripplePrimary: string,
+  rippleSecondary: string,
+  gridShadow: string
+) {
+  const progress = clamp((now - effect.capturedAt) / captureEffectMs, 0, 1);
+  const fadeProgress = progress < 0.28 ? 0 : (progress - 0.28) / 0.72;
+  const opacity = Math.pow(1 - fadeProgress, 1.28);
+  const scale = 1 - 0.34 * progress;
+  const color = effect.color === "black" ? ripplePrimary : rippleSecondary;
+
+  drawStone(ctx, effect, screenX, screenY, radius, scale, opacity, 1.4 + (1 - progress) * 0.8);
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = color;
+  ctx.shadowColor = effect.color === "black" ? gridShadow : rippleSecondary;
+  ctx.shadowBlur = 12 * (1 - progress);
+  ctx.lineWidth = 0.85;
+  ctx.globalAlpha = 0.24 * (1 - progress);
+  ctx.beginPath();
+  ctx.arc(screenX, screenY, cell * (0.54 + progress * 1.55), 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
@@ -293,23 +333,40 @@ export default function InteractiveGoBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stonesRef = useRef<Map<string, Stone>>(new Map());
   const placementEffectsRef = useRef<PlacementEffect[]>([]);
+  const captureEffectsRef = useRef<CaptureEffect[]>([]);
   const placementEffectTotalRef = useRef(0);
   const userPlacementEffectTotalRef = useRef(0);
+  const captureTotalRef = useRef(0);
   const activePlacementEffectCountRef = useRef(0);
+  const activeCaptureEffectCountRef = useRef(0);
   const animationRef = useRef<number | null>(null);
   const randomRef = useRef(createSeededRandom(20260629));
+  const randomTickRef = useRef(0);
   const metricsRef = useRef({ width: 0, height: 0, cell: 48 });
+  const visibleMetricsRef = useRef({
+    visibleStoneCount: 0,
+    visibleCapacity: 1,
+    visibleOccupancy: 0,
+    randomPlacementMode: "normal" as RandomPlacementMode
+  });
   const reducedMotionRef = useRef(false);
   const hoverPointRef = useRef<HoverPoint>(null);
   const suppressMouseClickUntilRef = useRef(0);
   const [stoneCount, setStoneCount] = useState(0);
   const [userStoneCount, setUserStoneCount] = useState(0);
+  const [visibleStoneCount, setVisibleStoneCount] = useState(0);
+  const [visibleCapacity, setVisibleCapacity] = useState(1);
+  const [visibleOccupancy, setVisibleOccupancy] = useState(0);
+  const [randomPlacementMode, setRandomPlacementMode] = useState<RandomPlacementMode>("normal");
   const [placementEffectCount, setPlacementEffectCount] = useState(0);
   const [userPlacementEffectCount, setUserPlacementEffectCount] = useState(0);
   const [activePlacementEffectCount, setActivePlacementEffectCount] = useState(0);
+  const [captureCount, setCaptureCount] = useState(0);
+  const [activeCaptureEffectCount, setActiveCaptureEffectCount] = useState(0);
   const [cellSize, setCellSize] = useState(48);
   const [lastStoneColor, setLastStoneColor] = useState<StoneColor | "none">("none");
   const [lastPlacementEffect, setLastPlacementEffect] = useState<StoneColor | "none">("none");
+  const [lastCapturedColor, setLastCapturedColor] = useState<StoneColor | "none">("none");
   const [lastPlacement, setLastPlacement] = useState<LastPlacement>("none");
   const [hoverPoint, setHoverPoint] = useState<HoverPoint>(null);
 
@@ -319,26 +376,77 @@ export default function InteractiveGoBackground() {
     setUserStoneCount(stones.filter((stone) => stone.source === "user").length);
   }, []);
 
-  const trimRandomStones = useCallback(() => {
-    const stones = Array.from(stonesRef.current.values()).filter((stone) => stone.source === "random");
-    stones.sort((a, b) => a.createdAt - b.createdAt);
-    while (stonesRef.current.size > maxStones && stones.length > 0) {
-      const oldest = stones.shift();
-      if (!oldest) return;
-      stonesRef.current.delete(stoneKey(oldest.x, oldest.y));
+  const syncVisibleMetrics = useCallback((bounds?: VisibleBounds) => {
+    const metrics = metricsRef.current;
+    const visibleBounds = bounds ?? getVisibleBounds(metrics.width, metrics.height, metrics.cell);
+    const next = getVisibleOccupancy(stonesRef.current, visibleBounds);
+    const nextMode = getRandomPlacementMode(next.occupancy);
+    const previous = visibleMetricsRef.current;
+
+    if (
+      previous.visibleStoneCount !== next.visibleStoneCount ||
+      previous.visibleCapacity !== next.visibleCapacity ||
+      Math.abs(previous.visibleOccupancy - next.occupancy) > 0.0001 ||
+      previous.randomPlacementMode !== nextMode
+    ) {
+      visibleMetricsRef.current = {
+        visibleStoneCount: next.visibleStoneCount,
+        visibleCapacity: next.visibleCapacity,
+        visibleOccupancy: next.occupancy,
+        randomPlacementMode: nextMode
+      };
+      setVisibleStoneCount(next.visibleStoneCount);
+      setVisibleCapacity(next.visibleCapacity);
+      setVisibleOccupancy(next.occupancy);
+      setRandomPlacementMode(nextMode);
     }
+
+    return { ...next, randomPlacementMode: nextMode };
   }, []);
 
   const placeStone = useCallback(
     (x: number, y: number, color: StoneColor, source: StoneSource) => {
       const now = Date.now();
-      stonesRef.current.set(stoneKey(x, y), {
+      if (!canPlaceStone(stonesRef.current, x, y)) {
+        return false;
+      }
+
+      const placedStone: Stone = {
         x,
         y,
         color,
         source,
         createdAt: now
+      };
+      stonesRef.current.set(stoneKey(x, y), placedStone);
+
+      const capturedKeys = getCapturedOpponentKeys(stonesRef.current, placedStone);
+      const capturedStones = capturedKeys
+        .map((key) => stonesRef.current.get(key))
+        .filter((stone): stone is Stone => Boolean(stone));
+
+      capturedKeys.forEach((key) => {
+        stonesRef.current.delete(key);
       });
+
+      if (capturedStones.length > 0) {
+        captureTotalRef.current += capturedStones.length;
+        setCaptureCount(captureTotalRef.current);
+        setLastCapturedColor(capturedStones[0].color);
+        if (!reducedMotionRef.current) {
+          captureEffectsRef.current = [
+            ...captureEffectsRef.current.slice(-18),
+            ...capturedStones.map((stone) => ({
+              ...stone,
+              capturedAt: now,
+              expiresAt: now + captureEffectMs
+            }))
+          ];
+          activeCaptureEffectCountRef.current = captureEffectsRef.current.length;
+          setActiveCaptureEffectCount(captureEffectsRef.current.length);
+        }
+      }
+
       if (!reducedMotionRef.current) {
         placementEffectsRef.current = [
           ...placementEffectsRef.current.slice(-9),
@@ -357,10 +465,11 @@ export default function InteractiveGoBackground() {
         setLastStoneColor(color);
         setLastPlacementEffect(color);
       }
-      trimRandomStones();
       syncStoneCount();
+      syncVisibleMetrics();
+      return true;
     },
-    [syncStoneCount, trimRandomStones]
+    [syncStoneCount, syncVisibleMetrics]
   );
 
   const tryPlaceStoneFromClientPoint = useCallback(
@@ -378,9 +487,9 @@ export default function InteractiveGoBackground() {
         return false;
       }
 
-      placeStone(point.x, point.y, color, "user");
-      setLastPlacement("hit");
-      return true;
+      const placed = placeStone(point.x, point.y, color, "user");
+      setLastPlacement(placed ? "hit" : "occupied");
+      return placed;
     },
     [placeStone]
   );
@@ -441,9 +550,11 @@ export default function InteractiveGoBackground() {
       const initialCount = reducedMotionRef.current ? 18 : 26;
       for (let i = 0; i < initialCount; i += 1) {
         const stone = pickRandomStone(metrics.width, metrics.height, metrics.cell, random);
+        if (stonesRef.current.has(stoneKey(stone.x, stone.y))) continue;
         stonesRef.current.set(stoneKey(stone.x, stone.y), stone);
       }
       syncStoneCount();
+      syncVisibleMetrics();
     };
 
     const resize = () => {
@@ -491,11 +602,18 @@ export default function InteractiveGoBackground() {
       context.fillRect(0, 0, metrics.width, metrics.height);
 
       const bounds = getVisibleBounds(metrics.width, metrics.height, cell);
+      syncVisibleMetrics(bounds);
       placementEffectsRef.current = placementEffectsRef.current.filter((effect) => effect.expiresAt > wallTime);
       const activeEffects = placementEffectsRef.current;
       if (activePlacementEffectCountRef.current !== activeEffects.length) {
         activePlacementEffectCountRef.current = activeEffects.length;
         setActivePlacementEffectCount(activeEffects.length);
+      }
+      captureEffectsRef.current = captureEffectsRef.current.filter((effect) => effect.expiresAt > wallTime);
+      const activeCaptureEffects = captureEffectsRef.current;
+      if (activeCaptureEffectCountRef.current !== activeCaptureEffects.length) {
+        activeCaptureEffectCountRef.current = activeCaptureEffects.length;
+        setActiveCaptureEffectCount(activeCaptureEffects.length);
       }
 
       context.save();
@@ -532,6 +650,12 @@ export default function InteractiveGoBackground() {
       });
 
       const stoneRadius = Math.min(18, cell * 0.34);
+      activeCaptureEffects.forEach((effect) => {
+        if (effect.x < bounds.minX || effect.x > bounds.maxX || effect.y < bounds.minY || effect.y > bounds.maxY) return;
+        const screen = gridToScreen(effect.x, effect.y, metrics.width, metrics.height, cell);
+        drawCaptureEffect(context, effect, screen.x, screen.y, stoneRadius, cell, wallTime, ripplePrimary, rippleSecondary, gridShadow);
+      });
+
       stonesRef.current.forEach((stone) => {
         if (stone.x < bounds.minX || stone.x > bounds.maxX || stone.y < bounds.minY || stone.y > bounds.maxY) return;
         const screen = gridToScreen(stone.x, stone.y, metrics.width, metrics.height, cell);
@@ -565,12 +689,16 @@ export default function InteractiveGoBackground() {
       : window.setInterval(() => {
           const metrics = metricsRef.current;
           const random = randomRef.current;
+          const bounds = getVisibleBounds(metrics.width, metrics.height, metrics.cell);
+          const { randomPlacementMode: mode } = syncVisibleMetrics(bounds);
+          randomTickRef.current += 1;
+
+          if (mode === "paused") return;
+          if (mode === "throttled" && randomTickRef.current % 3 !== 0) return;
+
           for (let attempt = 0; attempt < 8; attempt += 1) {
             const stone = pickRandomStone(metrics.width, metrics.height, metrics.cell, random);
-            const key = stoneKey(stone.x, stone.y);
-            if (stonesRef.current.has(key)) continue;
-            placeStone(stone.x, stone.y, stone.color, "random");
-            break;
+            if (placeStone(stone.x, stone.y, stone.color, "random")) break;
           }
         }, randomIntervalMs);
 
@@ -585,7 +713,7 @@ export default function InteractiveGoBackground() {
       if (animationRef.current) window.cancelAnimationFrame(animationRef.current);
       if (randomTimer) window.clearInterval(randomTimer);
     };
-  }, [placeStone, syncStoneCount, trimRandomStones]);
+  }, [placeStone, syncStoneCount, syncVisibleMetrics]);
 
   return (
     <div
@@ -594,12 +722,19 @@ export default function InteractiveGoBackground() {
       data-interactive-go-background
       data-stone-count={stoneCount}
       data-user-stone-count={userStoneCount}
+      data-visible-stone-count={visibleStoneCount}
+      data-visible-capacity={visibleCapacity}
+      data-visible-occupancy={visibleOccupancy.toFixed(4)}
+      data-random-placement-mode={randomPlacementMode}
       data-placement-effect-count={placementEffectCount}
       data-user-placement-effect-count={userPlacementEffectCount}
       data-active-placement-effect-count={activePlacementEffectCount}
       data-placement-effect-visual="grid-distortion-wave"
+      data-capture-count={captureCount}
+      data-active-capture-effect-count={activeCaptureEffectCount}
       data-last-stone-color={lastStoneColor}
       data-last-placement-effect={lastPlacementEffect}
+      data-last-captured-color={lastCapturedColor}
       data-last-placement={lastPlacement}
       data-cell-size={cellSize.toFixed(2)}
       data-grid-angle="0.0000"
