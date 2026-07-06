@@ -29,4 +29,13 @@ describe("style architecture", () => {
     expect(layout).not.toContain("ThemeToggle");
     expect(layout).not.toContain("personal-homepage-theme");
   });
+
+  it("keeps the intro fluid canvas unobscured like the reference opening", () => {
+    const effectsCss = read("src/styles/effects.css");
+    const introHero = read("src/components/hero/IntroOpeningHero.tsx");
+
+    expect(effectsCss).not.toContain(".content-inner::before");
+    expect(effectsCss).toMatch(/#background\s*\{[^}]*z-index:\s*-1;/s);
+    expect(introHero).toContain("BACK_COLOR: { r: 30, g: 31, b: 33 }");
+  });
 });

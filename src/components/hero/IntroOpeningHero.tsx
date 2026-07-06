@@ -26,7 +26,7 @@ const fluidConfig = {
   COLORFUL: true,
   COLOR_UPDATE_SPEED: 10,
   PAUSED: false,
-  BACK_COLOR: { r: 6, g: 6, b: 6 },
+  BACK_COLOR: { r: 30, g: 31, b: 33 },
   TRANSPARENT: false,
   BLOOM: true,
   BLOOM_ITERATIONS: 8,

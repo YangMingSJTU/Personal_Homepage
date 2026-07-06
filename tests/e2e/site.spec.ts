@@ -39,6 +39,12 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(hero.locator("[data-intro-subtitle]")).toBeVisible();
   await expect(hero.locator("[data-intro-subtitle] span")).toHaveCount(profileSignature.length);
   await expect(hero.getByRole("link", { name: "进入主视图" })).toBeVisible();
+  await expect
+    .poll(() =>
+      hero.locator(".content-inner").evaluate((element) => getComputedStyle(element, "::before").content)
+    )
+    .toBe("none");
+  await expect(hero.locator("#background")).toHaveCSS("z-index", "-1");
   await expect(hero.locator(".arrow.arrow-1")).toBeVisible();
   await expect(hero.locator(".arrow.arrow-2")).toBeVisible();
   await expect(hero.locator(".shape-wrap svg.shape path")).toHaveAttribute("d", /^M -44,-50/);
