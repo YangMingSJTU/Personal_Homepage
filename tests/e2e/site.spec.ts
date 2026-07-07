@@ -278,32 +278,35 @@ test("uses a fixed soft-dark visual system", async ({ page }) => {
   await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
 });
 
-test("expands the GitHub corner like a compact page curl", async ({ page }) => {
+test("expands the GitHub corner as a small sticky folded corner", async ({ page }) => {
   await page.goto(pagePath("/"));
   const corner = page.locator("[data-github-corner]");
   const fold = corner.locator("[data-github-fold]");
-  const curl = corner.locator("[data-github-page-curl]");
-  const face = corner.locator("[data-github-curl-face]");
-  const shadow = corner.locator("[data-github-curl-shadow]");
-  const mark = corner.locator("[data-github-curl-mark]");
+  const face = corner.locator("[data-github-fold-face]");
+  const back = corner.locator("[data-github-fold-back]");
+  const shadow = corner.locator("[data-github-fold-shadow]");
+  const edge = corner.locator("[data-github-fold-edge]");
+  const mark = corner.locator("[data-github-corner-mark]");
 
   await expect(corner).toHaveAttribute("href", githubRepoHref);
   await expect(fold).toBeVisible();
-  await expect(curl).toBeVisible();
   await expect(face).toBeVisible();
+  await expect(back).toBeVisible();
   await expect(shadow).toBeVisible();
+  await expect(edge).toBeVisible();
   await expect(mark).toBeVisible();
-  await expect(corner).toHaveAttribute("data-corner-style", "page-curl-fold");
+  await expect(corner.locator("[data-github-corner-label]")).toHaveCount(0);
+  await expect(corner).toHaveAttribute("data-corner-style", "sticky-github-curl");
   await expect(fold).toHaveAttribute("data-fold-state", "rest");
   const restBox = await fold.boundingBox();
-  expect(restBox?.width).toBeLessThanOrEqual(96);
-  expect(restBox?.height).toBeLessThanOrEqual(96);
+  expect(restBox?.width).toBeLessThanOrEqual(86);
+  expect(restBox?.height).toBeLessThanOrEqual(86);
 
   await corner.hover();
   await expect(fold).toHaveAttribute("data-fold-state", "expanded");
   const expandedBox = await fold.boundingBox();
-  expect(expandedBox?.width).toBeLessThanOrEqual(96);
-  expect(expandedBox?.height).toBeLessThanOrEqual(96);
+  expect(expandedBox?.width).toBeLessThanOrEqual(106);
+  expect(expandedBox?.height).toBeLessThanOrEqual(106);
 });
 
 test("uses the shared sci-fi go background on public content pages", async ({ page }) => {
