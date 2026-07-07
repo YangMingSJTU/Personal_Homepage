@@ -60,6 +60,8 @@ export default function IntroOpeningHero() {
     if (leavingRef.current) return;
     leavingRef.current = true;
     window.switchPage = { ...(window.switchPage ?? {}), switched: true };
+    document.documentElement.dataset.mainView = "active";
+    document.querySelector(".profile-card-inner")?.classList.add("in");
     const section = sectionRef.current;
     const shape = shapeRef.current;
     const path = pathRef.current;
@@ -107,6 +109,8 @@ export default function IntroOpeningHero() {
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.documentElement.removeAttribute("data-main-view");
+    document.querySelector(".profile-card-inner")?.classList.remove("in");
     window.config = { ...fluidConfig, PAUSED: reduceMotion };
     window.switchPage = { switched: false };
     const fadeTimer = window.setTimeout(() => setIntroLoaded(true), 0);

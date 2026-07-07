@@ -26,9 +26,14 @@ function pagePath(path: string) {
 test("renders the fluid opening and profile-card main view", async ({ page }) => {
   await page.goto(pagePath("/"));
   const hero = page.locator('[data-motion-scene="intro-opening"]');
+  const mainView = page.locator("#main-view");
+  const goBackground = mainView.locator("[data-interactive-go-background]");
+  const profileCard = page.locator("[data-profile-card]");
+  const profileCardInner = profileCard.locator(".profile-card-inner");
 
   await expect(page.locator("body > header")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Products", exact: true })).toHaveCount(0);
+  await expect(page.locator("html")).not.toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveAttribute("data-motion-scene", "intro-opening");
   await expect(hero.locator(".content-inner > canvas#background[aria-label='进入动画背景']")).toHaveAttribute(
     "data-visual",
@@ -62,7 +67,11 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.locator("[data-github-corner]")).toHaveAttribute("href", githubRepoHref);
   await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
   await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
-  await expect(page.locator("#main-view [data-interactive-go-background]")).toBeVisible();
+  await expect(mainView).toHaveCSS("visibility", "hidden");
+  await expect(mainView).toHaveCSS("opacity", "0");
+  await expect(mainView).toHaveCSS("pointer-events", "none");
+  await expect(goBackground).not.toBeVisible();
+  await expect.poll(() => profileCardInner.evaluate((element) => element.classList.contains("in"))).toBe(false);
   await expect(page.locator("#main-view [data-scifi-go-background]")).toHaveCount(0);
   await expect(page.getByText("G.G. Lab")).toHaveCount(0);
   await expect(page.getByText("AI Learner & Product Builder")).toHaveCount(0);
@@ -70,7 +79,11 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.getByText("Ready for the next move.")).toHaveCount(0);
 
   await page.getByRole("link", { name: "进入主视图" }).click();
-  const profileCard = page.locator("[data-profile-card]");
+  await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
+  await expect(mainView).toHaveCSS("visibility", "visible");
+  await expect(mainView).toHaveCSS("opacity", "1");
+  await expect(goBackground).toBeVisible();
+  await expect.poll(() => profileCardInner.evaluate((element) => element.classList.contains("in"))).toBe(true);
   await expect(profileCard).toBeInViewport();
   await expect(profileCard.getByRole("heading", { name: "Personal Homepage" })).toBeVisible();
   await expect(profileCard.getByText(profileSignature)).toBeVisible();
@@ -87,11 +100,14 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await page.goto(pagePath("/"));
   const hero = page.locator('[data-motion-scene="intro-opening"]');
   const background = page.locator("#main-view [data-interactive-go-background]");
+  const mainView = page.locator("#main-view");
 
   await expect(hero.locator("canvas[aria-label='进入动画背景']")).toBeVisible();
   await expect(hero.locator("canvas[aria-label='进入动画背景']")).toHaveAttribute("data-visual", "webgl-fluid-opening");
   await expect(hero.locator("canvas[aria-label='动态围棋棋盘']")).toHaveCount(0);
-  await expect(background).toBeVisible();
+  await expect(page.locator("html")).not.toHaveAttribute("data-main-view", "active");
+  await expect(mainView).toHaveCSS("visibility", "hidden");
+  await expect(background).not.toBeVisible();
   await expect(background).toHaveAttribute("data-stone-count", /^[1-9]\d*$/);
   await expect(background).toHaveAttribute("data-grid-angle", "0.0000");
   await expect(background).toHaveAttribute("data-placement-effect-count", "0");
@@ -114,6 +130,9 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await expect(background).toHaveAttribute("data-active-placement-effect-count", "0");
 
   await page.getByRole("link", { name: "进入主视图" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
+  await expect(mainView).toHaveCSS("visibility", "visible");
+  await expect(background).toBeVisible();
   await expect(page.locator("#main-view")).toBeInViewport();
   const canvas = background.locator("canvas[aria-label='交互围棋背景']");
   const center = await getCanvasCenter(canvas);
@@ -139,6 +158,7 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(hero.locator(".wrap.fade")).toHaveClass(/in/);
   await page.getByRole("link", { name: "进入主视图" }).click();
 
+  await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();
