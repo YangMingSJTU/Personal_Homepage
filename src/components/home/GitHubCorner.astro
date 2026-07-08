@@ -3,62 +3,29 @@ interface Props {
   href?: string;
 }
 
+import { withBase } from "@/lib/sitePath";
+
 const { href = "https://github.com/YangMingSJTU/Personal_Homepage" } = Astro.props;
+const curlAsset = withBase("/images/github-page-curl.png");
 ---
 
 <a
   href={href}
   class="github-corner"
   data-github-corner
-  data-corner-style="page-corner-curl"
+  data-corner-style="asset-page-curl"
   aria-label="View source on GitHub"
   target="_blank"
   rel="noopener noreferrer"
 >
   <span class="github-corner-fold" data-github-fold data-fold-state="rest" aria-hidden="true">
-    <span class="github-corner-paper" data-github-corner-paper></span>
-    <span class="github-corner-curl-ridge" data-github-curl-ridge></span>
-    <span class="github-corner-curl-sheet" data-github-curl-sheet>
-      <svg class="github-corner-curl-art" viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false">
-        <defs>
-          <linearGradient id="githubCornerFace" x1="16%" y1="2%" x2="94%" y2="96%">
-            <stop offset="0%" stop-color="#eef4fb" />
-            <stop offset="24%" stop-color="#dce6f2" />
-            <stop offset="58%" stop-color="#b8c6d8" />
-            <stop offset="100%" stop-color="#e8eff8" />
-          </linearGradient>
-          <linearGradient id="githubCornerInner" x1="88%" y1="6%" x2="30%" y2="86%">
-            <stop offset="0%" stop-color="#7f8da1" stop-opacity="0.44" />
-            <stop offset="42%" stop-color="#aab9cc" stop-opacity="0.22" />
-            <stop offset="100%" stop-color="#dbe6f2" stop-opacity="0" />
-          </linearGradient>
-          <radialGradient id="githubCornerShine" cx="21%" cy="9%" r="78%">
-            <stop offset="0%" stop-color="#f7fbff" stop-opacity="0.78" />
-            <stop offset="48%" stop-color="#edf5fc" stop-opacity="0.18" />
-            <stop offset="100%" stop-color="#d7e3ef" stop-opacity="0" />
-          </radialGradient>
-        </defs>
-        <path
-          d="M100 0 L100 100 C88 82 75 65 58 49 C38 30 18 10 0 0 Z"
-          fill="url(#githubCornerFace)"
-        />
-        <path
-          d="M100 0 L100 100 C88 82 75 65 58 49 C38 30 18 10 0 0 Z"
-          fill="url(#githubCornerInner)"
-        />
-        <path
-          d="M96 4 L100 100 C90 86 78 70 62 53 C45 36 25 17 5 2 Z"
-          fill="url(#githubCornerShine)"
-        />
-      </svg>
-      <svg class="github-corner-mark" data-github-corner-mark viewBox="0 0 16 16" focusable="false">
-        <path
-          fill="currentColor"
-          d="M8 1.4a6.8 6.8 0 0 0-2.15 13.25c.34.06.47-.14.47-.32v-1.16c-1.9.41-2.3-.8-2.3-.8-.31-.79-.76-1-.76-1-.62-.43.05-.42.05-.42.69.05 1.05.7 1.05.7.61 1.04 1.6.74 1.99.56.06-.44.24-.74.43-.91-1.52-.17-3.12-.76-3.12-3.38 0-.75.27-1.36.7-1.84-.07-.17-.3-.87.07-1.82 0 0 .57-.18 1.87.7A6.46 6.46 0 0 1 8 4.73c.58 0 1.16.08 1.7.23 1.3-.88 1.87-.7 1.87-.7.37.95.14 1.65.07 1.82.44.48.7 1.09.7 1.84 0 2.63-1.6 3.2-3.13 3.37.25.21.47.63.47 1.27v1.77c0 .18.12.38.47.32A6.8 6.8 0 0 0 8 1.4Z"
-        />
-      </svg>
-    </span>
-    <span class="github-corner-curl-edge" data-github-curl-edge></span>
+    <img class="github-corner-curl-asset" data-github-curl-asset src={curlAsset} alt="" width="691" height="858" loading="eager" />
+    <svg class="github-corner-mark" data-github-corner-mark viewBox="0 0 16 16" focusable="false">
+      <path
+        fill="currentColor"
+        d="M8 1.4a6.8 6.8 0 0 0-2.15 13.25c.34.06.47-.14.47-.32v-1.16c-1.9.41-2.3-.8-2.3-.8-.31-.79-.76-1-.76-1-.62-.43.05-.42.05-.42.69.05 1.05.7 1.05.7.61 1.04 1.6.74 1.99.56.06-.44.24-.74.43-.91-1.52-.17-3.12-.76-3.12-3.38 0-.75.27-1.36.7-1.84-.07-.17-.3-.87.07-1.82 0 0 .57-.18 1.87.7A6.46 6.46 0 0 1 8 4.73c.58 0 1.16.08 1.7.23 1.3-.88 1.87-.7 1.87-.7.37.95.14 1.65.07 1.82.44.48.7 1.09.7 1.84 0 2.63-1.6 3.2-3.13 3.37.25.21.47.63.47 1.27v1.77c0 .18.12.38.47.32A6.8 6.8 0 0 0 8 1.4Z"
+      />
+    </svg>
   </span>
 </a>
 
