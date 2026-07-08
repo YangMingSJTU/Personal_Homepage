@@ -296,17 +296,21 @@ test("expands the GitHub corner as a real page-corner curl", async ({ page }) =>
   await expect(edge).toBeVisible();
   await expect(mark).toBeVisible();
   await expect(corner.locator("[data-github-corner-label]")).toHaveCount(0);
+  await expect(sheet.locator("[data-github-curl-curve]")).toHaveCount(0);
+  await expect(sheet.locator("path[stroke]")).toHaveCount(0);
   await expect(corner).toHaveAttribute("data-corner-style", "page-corner-curl");
   await expect(fold).toHaveAttribute("data-fold-state", "rest");
   const restBox = await fold.boundingBox();
-  expect(restBox?.width).toBeLessThanOrEqual(96);
-  expect(restBox?.height).toBeLessThanOrEqual(96);
+  expect(restBox?.width).toBeLessThanOrEqual(52);
+  expect(restBox?.height).toBeLessThanOrEqual(52);
+  await expect(mark).toHaveCSS("opacity", "0");
 
   await corner.hover();
   await expect(fold).toHaveAttribute("data-fold-state", "expanded");
   const expandedBox = await fold.boundingBox();
-  expect(expandedBox?.width).toBeLessThanOrEqual(122);
-  expect(expandedBox?.height).toBeLessThanOrEqual(122);
+  expect(expandedBox?.width).toBeLessThanOrEqual(72);
+  expect(expandedBox?.height).toBeLessThanOrEqual(72);
+  await expect(mark).toHaveCSS("opacity", "1");
 });
 
 test("uses the shared sci-fi go background on public content pages", async ({ page }) => {
