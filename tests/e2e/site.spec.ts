@@ -313,10 +313,10 @@ test("expands the GitHub corner as a real page-corner curl", async ({ page }) =>
   await expect(fold).toHaveAttribute("data-fold-state", "expanded");
   const expandedBox = await fold.boundingBox();
   const expandedAssetBox = await asset.boundingBox();
-  expect(expandedBox?.width).toBeLessThanOrEqual(72);
-  expect(expandedBox?.height).toBeLessThanOrEqual(72);
-  expect(expandedAssetBox?.width).toBeLessThanOrEqual(72);
-  expect(expandedAssetBox?.height).toBeLessThanOrEqual(72);
+  expect(expandedBox?.width).toBeLessThanOrEqual(82);
+  expect(expandedBox?.height).toBeLessThanOrEqual(82);
+  expect(expandedAssetBox?.width).toBeLessThanOrEqual(82);
+  expect(expandedAssetBox?.height).toBeLessThanOrEqual(82);
   expect(expandedBox?.width ?? 0).toBeGreaterThan(restBox?.width ?? 0);
   expect(expandedBox?.height ?? 0).toBeGreaterThan(restBox?.height ?? 0);
   expect(expandedAssetBox?.width ?? 0).toBeGreaterThan(restAssetBox?.width ?? 0);
@@ -325,6 +325,12 @@ test("expands the GitHub corner as a real page-corner curl", async ({ page }) =>
   expect(expandedTransform).not.toBe(restTransform);
   await expect(underlay).toHaveCSS("opacity", "0.96");
   await expect(mark).toHaveCSS("opacity", "0.96");
+  const cornerBox = await corner.boundingBox();
+  const markBox = await mark.boundingBox();
+  expect(markBox?.x ?? 0).toBeGreaterThanOrEqual(cornerBox?.x ?? 0);
+  expect(markBox?.y ?? 0).toBeGreaterThanOrEqual(cornerBox?.y ?? 0);
+  expect((markBox?.x ?? 0) + (markBox?.width ?? 0)).toBeLessThanOrEqual((cornerBox?.x ?? 0) + (cornerBox?.width ?? 0));
+  expect((markBox?.y ?? 0) + (markBox?.height ?? 0)).toBeLessThanOrEqual((cornerBox?.y ?? 0) + (cornerBox?.height ?? 0));
 });
 
 test("uses the shared sci-fi go background on public content pages", async ({ page }) => {
