@@ -298,8 +298,10 @@ test("expands the GitHub corner as a real page-corner curl", async ({ page }) =>
   await expect(corner.locator("[data-github-corner-label]")).toHaveCount(0);
   await expect(sheet.locator("[data-github-curl-curve]")).toHaveCount(0);
   await expect(sheet.locator("path[stroke]")).toHaveCount(0);
+  await expect(sheet.locator('stop[stop-color="#ffffff"]')).toHaveCount(0);
   await expect(corner).toHaveAttribute("data-corner-style", "page-corner-curl");
   await expect(fold).toHaveAttribute("data-fold-state", "rest");
+  const restTransform = await sheet.evaluate((element) => getComputedStyle(element).transform);
   const restBox = await fold.boundingBox();
   expect(restBox?.width).toBeLessThanOrEqual(52);
   expect(restBox?.height).toBeLessThanOrEqual(52);
@@ -310,6 +312,10 @@ test("expands the GitHub corner as a real page-corner curl", async ({ page }) =>
   const expandedBox = await fold.boundingBox();
   expect(expandedBox?.width).toBeLessThanOrEqual(72);
   expect(expandedBox?.height).toBeLessThanOrEqual(72);
+  expect(expandedBox?.width ?? 0).toBeGreaterThan(restBox?.width ?? 0);
+  expect(expandedBox?.height ?? 0).toBeGreaterThan(restBox?.height ?? 0);
+  const expandedTransform = await sheet.evaluate((element) => getComputedStyle(element).transform);
+  expect(expandedTransform).not.toBe(restTransform);
   await expect(mark).toHaveCSS("opacity", "1");
 });
 

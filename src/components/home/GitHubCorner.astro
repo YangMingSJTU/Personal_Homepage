@@ -21,24 +21,33 @@ const { href = "https://github.com/YangMingSJTU/Personal_Homepage" } = Astro.pro
     <span class="github-corner-curl-sheet" data-github-curl-sheet>
       <svg class="github-corner-curl-art" viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false">
         <defs>
-          <linearGradient id="githubCornerFace" x1="12%" y1="3%" x2="92%" y2="95%">
-            <stop offset="0%" stop-color="#ffffff" />
-            <stop offset="28%" stop-color="#f9fbff" />
-            <stop offset="62%" stop-color="#dfe7f2" />
-            <stop offset="100%" stop-color="#fbfdff" />
+          <linearGradient id="githubCornerFace" x1="16%" y1="2%" x2="94%" y2="96%">
+            <stop offset="0%" stop-color="#eef4fb" />
+            <stop offset="24%" stop-color="#dce6f2" />
+            <stop offset="58%" stop-color="#b8c6d8" />
+            <stop offset="100%" stop-color="#e8eff8" />
           </linearGradient>
-          <radialGradient id="githubCornerShine" cx="19%" cy="11%" r="78%">
-            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
-            <stop offset="55%" stop-color="#ffffff" stop-opacity="0.2" />
-            <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+          <linearGradient id="githubCornerInner" x1="88%" y1="6%" x2="30%" y2="86%">
+            <stop offset="0%" stop-color="#7f8da1" stop-opacity="0.44" />
+            <stop offset="42%" stop-color="#aab9cc" stop-opacity="0.22" />
+            <stop offset="100%" stop-color="#dbe6f2" stop-opacity="0" />
+          </linearGradient>
+          <radialGradient id="githubCornerShine" cx="21%" cy="9%" r="78%">
+            <stop offset="0%" stop-color="#f7fbff" stop-opacity="0.78" />
+            <stop offset="48%" stop-color="#edf5fc" stop-opacity="0.18" />
+            <stop offset="100%" stop-color="#d7e3ef" stop-opacity="0" />
           </radialGradient>
         </defs>
         <path
-          d="M100 0 L100 100 C86 86 72 70 55 54 C37 36 20 16 0 0 Z"
+          d="M100 0 L100 100 C88 82 75 65 58 49 C38 30 18 10 0 0 Z"
           fill="url(#githubCornerFace)"
         />
         <path
-          d="M100 0 L100 100 C86 86 72 70 55 54 C37 36 20 16 0 0 Z"
+          d="M100 0 L100 100 C88 82 75 65 58 49 C38 30 18 10 0 0 Z"
+          fill="url(#githubCornerInner)"
+        />
+        <path
+          d="M96 4 L100 100 C90 86 78 70 62 53 C45 36 25 17 5 2 Z"
           fill="url(#githubCornerShine)"
         />
       </svg>
