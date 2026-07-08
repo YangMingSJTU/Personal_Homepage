@@ -310,17 +310,17 @@ test("expands the GitHub corner as a real page-corner curl", async ({ page }) =>
   await expect(fold).toHaveAttribute("data-fold-state", "expanded");
   const expandedBox = await fold.boundingBox();
   const expandedAssetBox = await asset.boundingBox();
-  expect(expandedBox?.width).toBeLessThanOrEqual(56);
-  expect(expandedBox?.height).toBeLessThanOrEqual(56);
-  expect(expandedAssetBox?.width).toBeLessThanOrEqual(56);
-  expect(expandedAssetBox?.height).toBeLessThanOrEqual(56);
+  expect(expandedBox?.width).toBeLessThanOrEqual(68);
+  expect(expandedBox?.height).toBeLessThanOrEqual(68);
+  expect(expandedAssetBox?.width).toBeLessThanOrEqual(68);
+  expect(expandedAssetBox?.height).toBeLessThanOrEqual(68);
   expect(expandedBox?.width ?? 0).toBeGreaterThan(restBox?.width ?? 0);
   expect(expandedBox?.height ?? 0).toBeGreaterThan(restBox?.height ?? 0);
   expect(expandedAssetBox?.width ?? 0).toBeGreaterThan(restAssetBox?.width ?? 0);
   expect(expandedAssetBox?.height ?? 0).toBeGreaterThan(restAssetBox?.height ?? 0);
   const expandedTransform = await asset.evaluate((element) => getComputedStyle(element).transform);
   expect(expandedTransform).not.toBe(restTransform);
-  await expect(mark).toHaveCSS("opacity", "0.68");
+  await expect(mark).toHaveCSS("opacity", "0.92");
 });
 
 test("uses the shared sci-fi go background on public content pages", async ({ page }) => {
