@@ -517,7 +517,7 @@
   display: block;
   width: 78px;
   height: 78px;
-  color: #f5f8fb;
+  color: #1b2433;
   cursor: pointer;
   isolation: isolate;
   text-decoration: none;
@@ -587,7 +587,7 @@
 .github-corner-mark {
   top: 31px;
   right: 22px;
-  z-index: 1;
+  z-index: 2;
   width: 20px;
   height: 20px;
   color: currentColor;
@@ -608,7 +608,7 @@
 .github-corner:hover .github-corner-underlay,
 .github-corner:focus-visible .github-corner-underlay,
 .github-corner:active .github-corner-underlay {
-  opacity: 0.96;
+  opacity: 0;
   transform: scale(1);
 }
 
@@ -619,8 +619,7 @@
   transform: scale(0.88);
   filter:
     brightness(1.04)
-    saturate(0.72)
-    drop-shadow(-10px 13px 18px rgba(3, 8, 16, 0.34));
+    saturate(0.72);
 }
 
 .github-corner:hover .github-corner-mark,
@@ -632,8 +631,8 @@
 
 .github-corner:focus-visible {
   border-radius: 0 0 0 18px;
-  outline: 2px solid color-mix(in srgb, var(--color-cyan) 58%, transparent);
-  outline-offset: -7px;
+  outline: 1px solid rgba(245, 248, 251, 0.18);
+  outline-offset: -8px;
 }
 
 @media (prefers-reduced-motion: reduce) {

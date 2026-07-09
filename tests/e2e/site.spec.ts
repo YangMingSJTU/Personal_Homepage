@@ -323,7 +323,9 @@ test("expands the GitHub corner as a real page-corner curl", async ({ page }) =>
   expect(expandedAssetBox?.height ?? 0).toBeGreaterThan(restAssetBox?.height ?? 0);
   const expandedTransform = await asset.evaluate((element) => getComputedStyle(element).transform);
   expect(expandedTransform).not.toBe(restTransform);
-  await expect(underlay).toHaveCSS("opacity", "0.96");
+  const expandedFilter = await asset.evaluate((element) => getComputedStyle(element).filter);
+  expect(expandedFilter).not.toContain("drop-shadow");
+  await expect(underlay).toHaveCSS("opacity", "0");
   await expect(mark).toHaveCSS("opacity", "0.96");
   const cornerBox = await corner.boundingBox();
   const markBox = await mark.boundingBox();
