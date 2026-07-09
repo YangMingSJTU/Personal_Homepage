@@ -326,13 +326,15 @@ test("expands the GitHub corner as a real page-corner curl", async ({ page }) =>
   const expandedFilter = await asset.evaluate((element) => getComputedStyle(element).filter);
   expect(expandedFilter).not.toContain("drop-shadow");
   await expect(underlay).toHaveCSS("opacity", "0");
-  await expect(mark).toHaveCSS("opacity", "0.96");
+  await expect(mark).toHaveCSS("opacity", "1");
   const cornerBox = await corner.boundingBox();
   const markBox = await mark.boundingBox();
   expect(markBox?.x ?? 0).toBeGreaterThanOrEqual(cornerBox?.x ?? 0);
   expect(markBox?.y ?? 0).toBeGreaterThanOrEqual(cornerBox?.y ?? 0);
   expect((markBox?.x ?? 0) + (markBox?.width ?? 0)).toBeLessThanOrEqual((cornerBox?.x ?? 0) + (cornerBox?.width ?? 0));
   expect((markBox?.y ?? 0) + (markBox?.height ?? 0)).toBeLessThanOrEqual((cornerBox?.y ?? 0) + (cornerBox?.height ?? 0));
+  expect(markBox?.y ?? 0).toBeLessThanOrEqual((cornerBox?.y ?? 0) + 20);
+  expect((markBox?.x ?? 0) + (markBox?.width ?? 0)).toBeGreaterThanOrEqual((cornerBox?.x ?? 0) + (cornerBox?.width ?? 0) - 30);
 });
 
 test("uses the shared sci-fi go background on public content pages", async ({ page }) => {

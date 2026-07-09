@@ -517,7 +517,7 @@
   display: block;
   width: 78px;
   height: 78px;
-  color: #1b2433;
+  color: #e8eef7;
   cursor: pointer;
   isolation: isolate;
   text-decoration: none;
@@ -585,11 +585,11 @@
 }
 
 .github-corner-mark {
-  top: 31px;
-  right: 22px;
-  z-index: 2;
-  width: 20px;
-  height: 20px;
+  top: 9px;
+  right: 7px;
+  z-index: 0;
+  width: 18px;
+  height: 18px;
   color: currentColor;
   opacity: 0;
   transform: scale(0.72) translate(3px, -3px);
@@ -625,7 +625,7 @@
 .github-corner:hover .github-corner-mark,
 .github-corner:focus-visible .github-corner-mark,
 .github-corner:active .github-corner-mark {
-  opacity: 0.96;
+  opacity: 1;
   transform: scale(1) translate(0, 0);
 }
 
