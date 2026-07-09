@@ -81,34 +81,6 @@
   animation: letter-glow 780ms ease both;
 }
 
-.enter {
-  position: relative;
-  z-index: 999;
-  display: inline-block;
-  padding: 0;
-  border: 0;
-  background: linear-gradient(90deg, #fff 0%, #8f8f8f 45%, #fff 55%, #fff 100%);
-  background-size: 240% 100%;
-  color: transparent;
-  cursor: pointer;
-  font-family: "Comic Sans MS", "Comic Sans", cursive;
-  font-size: 0.8rem;
-  font-weight: 200;
-  letter-spacing: 3px;
-  line-height: 1;
-  text-decoration: none;
-  text-transform: uppercase;
-  -webkit-background-clip: text;
-  background-clip: text;
-  text-shadow: 0 0 18px rgba(255, 255, 255, 0.48);
-  animation: enter-shine 1.9s linear infinite;
-}
-
-.enter:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.82);
-  outline-offset: 12px;
-}
-
 .arrow {
   position: absolute;
   top: 92%;
@@ -362,16 +334,6 @@ html[data-main-view="active"] .home-main {
       0 0 16px rgba(255, 255, 255, 0.82),
       0 0 52px rgba(107, 190, 255, 0.52),
       0 0 88px rgba(255, 255, 255, 0.24);
-  }
-}
-
-@keyframes enter-shine {
-  from {
-    background-position: 0 50%;
-  }
-
-  to {
-    background-position: 220% 50%;
   }
 }
 

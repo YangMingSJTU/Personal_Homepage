@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import anime from "animejs/lib/anime.es.js";
+import { introQuotes } from "@/data/introQuotes";
 import { withBase } from "@/lib/sitePath";
 
 declare global {
@@ -39,13 +40,16 @@ const fluidConfig = {
   SUNRAYS_WEIGHT: 1
 };
 
-const introTitle = "Personal Homepage";
-const introSubtitle = "Projects / About";
+const introTitle = "YangMing";
 const fluidScriptSrc = withBase("/vendor/webgl-fluid-background.js");
 const shapePath =
   "M -44,-50 C -52.71,28.52 15.86,8.186 184,14.69 383.3,22.39 462.5,12.58 638,14 835.5,15.6 987,6.4 1194,13.86 1661,30.68 1652,-36.74 1582,-140.1 1512,-243.5 15.88,-589.5 -44,-50 Z";
 const shapeTargetPath =
   "M -44,-50 C -137.1,117.4 67.86,445.5 236,452 435.3,459.7 500.5,242.6 676,244 873.5,245.6 957,522.4 1154,594 1593,753.7 1793,226.3 1582,-126 1371,-478.3 219.8,-524.2 -44,-50 Z";
+
+function pickIntroQuote() {
+  return introQuotes[Math.floor(Math.random() * introQuotes.length)];
+}
 
 export default function IntroOpeningHero() {
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -53,6 +57,7 @@ export default function IntroOpeningHero() {
   const pathRef = useRef<SVGPathElement | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
+  const [selectedQuote, setSelectedQuote] = useState<string>(introQuotes[0]);
   const [introLoaded, setIntroLoaded] = useState(false);
   const [subtitleLoaded, setSubtitleLoaded] = useState(false);
 
@@ -99,18 +104,11 @@ export default function IntroOpeningHero() {
     window.__stopWebglFluidBackground?.();
   }, []);
 
-  const handleEnterClick = useCallback(
-    (event: React.MouseEvent<HTMLAnchorElement>) => {
-      event.preventDefault();
-      enterMainView();
-    },
-    [enterMainView]
-  );
-
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     document.documentElement.removeAttribute("data-main-view");
     document.querySelector(".profile-card-inner")?.classList.remove("in");
+    setSelectedQuote(pickIntroQuote());
     window.config = { ...fluidConfig, PAUSED: reduceMotion };
     window.switchPage = { switched: false };
     const fadeTimer = window.setTimeout(() => setIntroLoaded(true), 0);
@@ -182,18 +180,15 @@ export default function IntroOpeningHero() {
 
         <div className={`wrap fade${introLoaded ? " in" : ""}`}>
           <h2 className="content-title">{introTitle}</h2>
-          <h3 className="content-subtitle" data-intro-subtitle data-original-content={introSubtitle}>
+          <h3 className="content-subtitle" data-intro-subtitle data-original-content={selectedQuote}>
             {subtitleLoaded
-              ? Array.from(introSubtitle).map((letter, index) => (
+              ? Array.from(selectedQuote).map((letter, index) => (
                   <span key={`${letter}-${index}`} style={{ animationDelay: `${index * 55}ms` }}>
                     {letter === " " ? "\u00a0" : letter}
                   </span>
                 ))
               : "\u00a0"}
           </h3>
-          <a className="enter" href="#main-view" aria-label="进入主视图" onClick={handleEnterClick}>
-            ENTER
-          </a>
           <div className="arrow arrow-1" aria-hidden="true" onMouseEnter={enterMainView} />
           <div className="arrow arrow-2" aria-hidden="true" onMouseEnter={enterMainView} />
         </div>

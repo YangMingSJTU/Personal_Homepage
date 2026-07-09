@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from "@playwright/test";
+import { introQuotes } from "../../src/data/introQuotes";
 
 async function getCanvasCenter(canvas: Locator) {
   const box = await canvas.boundingBox();
@@ -40,10 +41,14 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
     "webgl-fluid-opening"
   );
   await expect(hero.locator(".wrap.fade")).toHaveClass(/in/);
-  await expect(hero.locator(".content-title")).toHaveText("Personal Homepage");
-  await expect(hero.locator("[data-intro-subtitle]")).toBeVisible();
-  await expect(hero.locator("[data-intro-subtitle] span")).toHaveCount(profileSignature.length);
-  await expect(hero.getByRole("link", { name: "进入主视图" })).toBeVisible();
+  await expect(hero.locator(".content-title")).toHaveText("YangMing");
+  const introSubtitle = hero.locator("[data-intro-subtitle]");
+  await expect(introSubtitle).toBeVisible();
+  const selectedIntroQuote = await introSubtitle.getAttribute("data-original-content");
+  expect(Array.from(introQuotes)).toContain(selectedIntroQuote);
+  await expect(hero.locator("[data-intro-subtitle] span")).toHaveCount(Array.from(selectedIntroQuote || "").length);
+  await expect(hero.getByRole("link", { name: "进入主视图" })).toHaveCount(0);
+  await expect(hero.getByText("ENTER", { exact: true })).toHaveCount(0);
   await expect
     .poll(() =>
       hero.locator(".content-inner").evaluate((element) => getComputedStyle(element, "::before").content)
@@ -78,7 +83,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.getByText("Status: Building")).toHaveCount(0);
   await expect(page.getByText("Ready for the next move.")).toHaveCount(0);
 
-  await page.getByRole("link", { name: "进入主视图" }).click();
+  await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(mainView).toHaveCSS("opacity", "1");
@@ -129,7 +134,7 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await expect(background).toHaveAttribute("data-placement-effect-count", initialEffectCount || "");
   await expect(background).toHaveAttribute("data-active-placement-effect-count", "0");
 
-  await page.getByRole("link", { name: "进入主视图" }).click();
+  await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(background).toBeVisible();
@@ -156,7 +161,32 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   const background = page.locator("#main-view [data-interactive-go-background]");
 
   await expect(hero.locator(".wrap.fade")).toHaveClass(/in/);
-  await page.getByRole("link", { name: "进入主视图" }).click();
+  if (test.info().project.name === "mobile") {
+    await hero.evaluate((element) => {
+      const startTouch = new Touch({ identifier: 1, target: element, clientX: 200, clientY: 620 });
+      const endTouch = new Touch({ identifier: 1, target: element, clientX: 200, clientY: 520 });
+      element.dispatchEvent(
+        new TouchEvent("touchstart", {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [startTouch],
+          targetTouches: [startTouch],
+          touches: [startTouch]
+        })
+      );
+      element.dispatchEvent(
+        new TouchEvent("touchend", {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [endTouch],
+          targetTouches: [],
+          touches: []
+        })
+      );
+    });
+  } else {
+    await page.mouse.wheel(0, 420);
+  }
 
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
