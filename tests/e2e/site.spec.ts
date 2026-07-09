@@ -36,6 +36,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.getByRole("link", { name: "Products", exact: true })).toHaveCount(0);
   await expect(page.locator("html")).not.toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveAttribute("data-motion-scene", "intro-opening");
+  await expect(hero).toHaveAttribute("data-transition-visual", "particle-dissolve-wipe");
   await expect(hero.locator(".content-inner > canvas#background[aria-label='进入动画背景']")).toHaveAttribute(
     "data-visual",
     "webgl-fluid-opening"
@@ -57,7 +58,13 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(hero.locator("#background")).toHaveCSS("z-index", "-1");
   await expect(hero.locator(".arrow.arrow-1")).toBeVisible();
   await expect(hero.locator(".arrow.arrow-2")).toBeVisible();
-  await expect(hero.locator(".shape-wrap svg.shape path")).toHaveAttribute("d", /^M -44,-50/);
+  await expect(hero.locator("[data-shape-main-path]")).toHaveAttribute("d", /^M -44,-50/);
+  const particleCanvas = hero.locator("[data-intro-particle-transition]");
+  await expect(particleCanvas).toBeAttached();
+  await expect(particleCanvas).toHaveAttribute("data-particle-transition-state", "idle");
+  await expect(particleCanvas).toHaveAttribute("data-particle-count", "0");
+  await expect(hero.locator("[data-shape-streak-primary]")).toHaveCount(0);
+  await expect(hero.locator("[data-shape-streak-secondary]")).toHaveCount(0);
   await expect(hero.locator("canvas[aria-label='动态围棋棋盘']")).toHaveCount(0);
   await expect
     .poll(() =>
@@ -85,6 +92,15 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
 
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
+  await expect(hero).toHaveClass(/is-leaving/);
+  await expect
+    .poll(() => particleCanvas.getAttribute("data-particle-transition-state"))
+    .toMatch(/^(running|done)$/);
+  const activeParticleCount = Number(await particleCanvas.getAttribute("data-particle-count"));
+  const transitionState = await particleCanvas.getAttribute("data-particle-transition-state");
+  if (transitionState === "running") {
+    expect(activeParticleCount).toBeGreaterThan(0);
+  }
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(mainView).toHaveCSS("opacity", "1");
   await expect(goBackground).toBeVisible();
@@ -136,6 +152,10 @@ test("renders a static intro and go-backed main view for reduced motion users", 
 
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
+  await expect(hero).toHaveClass(/is-leaving/);
+  const particleCanvas = hero.locator("[data-intro-particle-transition]");
+  await expect(particleCanvas).toHaveAttribute("data-particle-transition-state", "done");
+  await expect(particleCanvas).toHaveAttribute("data-particle-count", "0");
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(background).toBeVisible();
   await expect(page.locator("#main-view")).toBeInViewport();
@@ -190,6 +210,15 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
 
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
+  await expect(hero.locator("[data-shape-main-path]")).toBeVisible();
+  const particleCanvas = hero.locator("[data-intro-particle-transition]");
+  await expect(particleCanvas).toBeAttached();
+  await expect
+    .poll(() => particleCanvas.getAttribute("data-particle-transition-state"))
+    .toMatch(/^(running|done)$/);
+  await expect
+    .poll(() => hero.locator("[data-shape-main-path]").getAttribute("d"))
+    .toMatch(/^M -44,-50 C -137\.1/);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();
   const canvas = background.locator("canvas[aria-label='交互围棋背景']");
