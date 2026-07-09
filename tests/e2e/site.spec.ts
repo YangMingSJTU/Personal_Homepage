@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { introQuotes } from "../../src/data/introQuotes";
 
 async function getCanvasCenter(canvas: Locator) {
@@ -12,6 +12,53 @@ async function getCanvasCenter(canvas: Locator) {
 
 async function getNumericAttribute(locator: Locator, name: string) {
   return Number(await locator.getAttribute(name));
+}
+
+async function waitForMainViewSettled(mainView: Locator) {
+  await expect
+    .poll(() => mainView.evaluate((element) => getComputedStyle(element).transform))
+    .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+}
+
+type TestPoint = { x: number; y: number };
+type PlacementInput = "left" | "right" | "touch";
+
+function getOpenGridCandidates(center: TestPoint, cell: number, isMobile: boolean) {
+  const offsets = isMobile
+    ? [
+        [-3, 4],
+        [-2, 4],
+        [2, 4],
+        [3, 4],
+        [-3, 5],
+        [3, 5]
+      ]
+    : [
+        [-6, 4],
+        [-5, 4],
+        [-7, 4],
+        [6, 4],
+        [7, 4],
+        [-6, 5],
+        [-5, 5]
+      ];
+
+  return offsets.map(([x, y]) => ({ x: center.x + x * cell, y: center.y + y * cell }));
+}
+
+async function placeStoneOnOpenCandidate(page: Page, background: Locator, candidates: TestPoint[], input: PlacementInput) {
+  for (const point of candidates) {
+    if (input === "touch") {
+      await page.touchscreen.tap(point.x, point.y);
+    } else {
+      await page.mouse.click(point.x, point.y, { button: input });
+    }
+
+    const lastPlacement = await background.getAttribute("data-last-placement");
+    if (lastPlacement === "hit") return point;
+  }
+
+  throw new Error("No open go-grid candidate accepted a placement");
 }
 
 const githubRepoHref = "https://github.com/YangMingSJTU/Personal_Homepage";
@@ -36,7 +83,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.getByRole("link", { name: "Products", exact: true })).toHaveCount(0);
   await expect(page.locator("html")).not.toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveAttribute("data-motion-scene", "intro-opening");
-  await expect(hero).toHaveAttribute("data-transition-visual", "particle-dissolve-wipe");
+  await expect(hero).toHaveAttribute("data-transition-visual", "slide-deck-morph");
   await expect(hero.locator(".content-inner > canvas#background[aria-label='进入动画背景']")).toHaveAttribute(
     "data-visual",
     "webgl-fluid-opening"
@@ -58,11 +105,10 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(hero.locator("#background")).toHaveCSS("z-index", "-1");
   await expect(hero.locator(".arrow.arrow-1")).toBeVisible();
   await expect(hero.locator(".arrow.arrow-2")).toBeVisible();
-  await expect(hero.locator("[data-shape-main-path]")).toHaveAttribute("d", /^M -44,-50/);
-  const particleCanvas = hero.locator("[data-intro-particle-transition]");
-  await expect(particleCanvas).toBeAttached();
-  await expect(particleCanvas).toHaveAttribute("data-particle-transition-state", "idle");
-  await expect(particleCanvas).toHaveAttribute("data-particle-count", "0");
+  const slideEdge = hero.locator("[data-slide-transition-edge]");
+  await expect(slideEdge).toBeAttached();
+  await expect(hero.locator("[data-intro-particle-transition]")).toHaveCount(0);
+  await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-streak-primary]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-streak-secondary]")).toHaveCount(0);
   await expect(hero.locator("canvas[aria-label='动态围棋棋盘']")).toHaveCount(0);
@@ -93,17 +139,11 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
-  await expect
-    .poll(() => particleCanvas.getAttribute("data-particle-transition-state"))
-    .toMatch(/^(running|done)$/);
-  const activeParticleCount = Number(await particleCanvas.getAttribute("data-particle-count"));
-  const transitionState = await particleCanvas.getAttribute("data-particle-transition-state");
-  if (transitionState === "running") {
-    expect(activeParticleCount).toBeGreaterThan(0);
-  }
+  await expect(slideEdge).toBeAttached();
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(mainView).toHaveCSS("opacity", "1");
   await expect(goBackground).toBeVisible();
+  await waitForMainViewSettled(mainView);
   await expect.poll(() => profileCardInner.evaluate((element) => element.classList.contains("in"))).toBe(true);
   await expect(profileCard).toBeInViewport();
   await expect(profileCard.getByRole("heading", { name: "Personal Homepage" })).toBeVisible();
@@ -153,19 +193,20 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
-  const particleCanvas = hero.locator("[data-intro-particle-transition]");
-  await expect(particleCanvas).toHaveAttribute("data-particle-transition-state", "done");
-  await expect(particleCanvas).toHaveAttribute("data-particle-count", "0");
+  await expect(hero.locator("[data-slide-transition-edge]")).toBeAttached();
+  await expect(hero.locator("[data-intro-particle-transition]")).toHaveCount(0);
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(background).toBeVisible();
   await expect(page.locator("#main-view")).toBeInViewport();
   const canvas = background.locator("canvas[aria-label='交互围棋背景']");
   const center = await getCanvasCenter(canvas);
-  if (test.info().project.name === "mobile") {
-    await page.touchscreen.tap(center.x, center.y);
-  } else {
-    await page.mouse.click(center.x, center.y, { button: "left" });
-  }
+  const cell = Number(await background.getAttribute("data-cell-size"));
+  await placeStoneOnOpenCandidate(
+    page,
+    background,
+    getOpenGridCandidates(center, cell, test.info().project.name === "mobile"),
+    test.info().project.name === "mobile" ? "touch" : "left"
+  );
   await expect(background).toHaveAttribute("data-last-stone-color", "black");
   await expect(background).toHaveAttribute("data-last-placement", "hit");
   await expect(background).toHaveAttribute("data-placement-effect-count", initialEffectCount || "");
@@ -210,17 +251,12 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
 
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
-  await expect(hero.locator("[data-shape-main-path]")).toBeVisible();
-  const particleCanvas = hero.locator("[data-intro-particle-transition]");
-  await expect(particleCanvas).toBeAttached();
-  await expect
-    .poll(() => particleCanvas.getAttribute("data-particle-transition-state"))
-    .toMatch(/^(running|done)$/);
-  await expect
-    .poll(() => hero.locator("[data-shape-main-path]").getAttribute("d"))
-    .toMatch(/^M -44,-50 C -137\.1/);
+  await expect(hero.locator("[data-slide-transition-edge]")).toBeAttached();
+  await expect(hero.locator("[data-intro-particle-transition]")).toHaveCount(0);
+  await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();
+  await waitForMainViewSettled(page.locator("#main-view"));
   const canvas = background.locator("canvas[aria-label='交互围棋背景']");
   await expect(canvas).toHaveAttribute("data-visual", "infinite-go-grid");
   await expect(page.locator("#main-view .scifi-go-board-plane")).toHaveCount(0);
@@ -244,11 +280,18 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(background).toHaveAttribute("data-grid-angle", "0.0000");
 
   const center = await getCanvasCenter(canvas);
+  const cell = Number(await background.getAttribute("data-cell-size"));
+  const openCandidates = getOpenGridCandidates(center, cell, test.info().project.name === "mobile");
   const effectCountBeforeUser = await getNumericAttribute(background, "data-placement-effect-count");
   const userEffectCountBeforeUser = await getNumericAttribute(background, "data-user-placement-effect-count");
+  const firstPoint = await placeStoneOnOpenCandidate(
+    page,
+    background,
+    openCandidates,
+    test.info().project.name === "mobile" ? "touch" : "left"
+  );
 
   if (test.info().project.name === "mobile") {
-    await page.touchscreen.tap(center.x, center.y);
     await expect(background).toHaveAttribute("data-last-stone-color", "black");
     await expect(background).toHaveAttribute("data-last-placement", "hit");
     await expect(background).toHaveAttribute("data-last-placement-effect", "black");
@@ -259,7 +302,6 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
       .poll(async () => getNumericAttribute(background, "data-user-placement-effect-count"))
       .toBeGreaterThan(userEffectCountBeforeUser);
   } else {
-    await page.mouse.click(center.x, center.y, { button: "left" });
     await expect(background).toHaveAttribute("data-last-stone-color", "black");
     await expect(background).toHaveAttribute("data-last-placement", "hit");
     await expect(background).toHaveAttribute("data-last-placement-effect", "black");
@@ -272,15 +314,19 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
 
     const userCountBeforeOccupied = await background.getAttribute("data-user-stone-count");
     const userEffectCountBeforeOccupied = await background.getAttribute("data-user-placement-effect-count");
-    await page.mouse.click(center.x, center.y, { button: "left" });
+    await page.mouse.click(firstPoint.x, firstPoint.y, { button: "left" });
     await expect(background).toHaveAttribute("data-last-placement", "occupied");
     await expect(background).toHaveAttribute("data-user-stone-count", userCountBeforeOccupied || "");
     await expect(background).toHaveAttribute("data-user-placement-effect-count", userEffectCountBeforeOccupied || "");
 
-    const cell = Number(await background.getAttribute("data-cell-size"));
     const effectCountBeforeWhite = await getNumericAttribute(background, "data-placement-effect-count");
     const userEffectCountBeforeWhite = await getNumericAttribute(background, "data-user-placement-effect-count");
-    await page.mouse.click(center.x + cell, center.y, { button: "right" });
+    await placeStoneOnOpenCandidate(
+      page,
+      background,
+      openCandidates.filter((point) => point.x !== firstPoint.x || point.y !== firstPoint.y),
+      "right"
+    );
     await expect(background).toHaveAttribute("data-last-stone-color", "white");
     await expect(background).toHaveAttribute("data-last-placement", "hit");
     await expect(background).toHaveAttribute("data-last-placement-effect", "white");
@@ -313,14 +359,13 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
       .toBeGreaterThan(0);
   }
 
-  const cell = Number(await background.getAttribute("data-cell-size"));
   const userCountBeforeMiss = await background.getAttribute("data-user-stone-count");
   const colorBeforeMiss = await background.getAttribute("data-last-stone-color");
   const userEffectCountBeforeMiss = await background.getAttribute("data-user-placement-effect-count");
   if (test.info().project.name === "mobile") {
     await page.waitForTimeout(750);
   }
-  await page.mouse.click(center.x + cell / 2, center.y, { button: "left" });
+  await page.mouse.click(firstPoint.x + cell / 2, firstPoint.y, { button: "left" });
   await expect(background).toHaveAttribute("data-last-placement", "miss");
   await expect(background).toHaveAttribute("data-user-stone-count", userCountBeforeMiss || "");
   await expect(background).toHaveAttribute("data-last-stone-color", colorBeforeMiss || "");

@@ -37,9 +37,12 @@ describe("style architecture", () => {
     expect(effectsCss).not.toContain(".content-inner::before");
     expect(effectsCss).toMatch(/#background\s*\{[^}]*z-index:\s*-1;/s);
     expect(introHero).toContain("BACK_COLOR: { r: 30, g: 31, b: 33 }");
-    expect(introHero).toContain('data-transition-visual="particle-dissolve-wipe"');
-    expect(introHero).toContain("data-intro-particle-transition");
-    expect(effectsCss).toContain(".intro-particle-transition");
+    expect(introHero).toContain('data-transition-visual="slide-deck-morph"');
+    expect(introHero).toContain("data-slide-transition-edge");
+    expect(introHero).not.toContain("data-intro-particle-transition");
+    expect(introHero).not.toContain("TransitionParticle");
+    expect(effectsCss).toContain(".slide-transition-edge");
+    expect(effectsCss).not.toContain(".intro-particle-transition");
     expect(introHero).not.toContain("data-shape-streak-primary");
     expect(introHero).not.toContain("data-shape-streak-secondary");
   });
