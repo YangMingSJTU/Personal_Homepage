@@ -208,19 +208,22 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(particleFlow).toBeAttached();
   await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "idle");
   await expect(particleFlow).toHaveAttribute("data-particle-transition-phase", "idle");
-  await expect(particleFlow).toHaveAttribute("data-particle-transition-model", "taiji-particle-formation");
-  await expect(particleFlow).toHaveAttribute("data-particle-transition-duration-ms", "2100");
+  await expect(particleFlow).toHaveAttribute("data-particle-transition-model", "fullscreen-taiji-particle-wipe");
+  await expect(particleFlow).toHaveAttribute("data-particle-transition-duration-ms", "2300");
   await expect(particleFlow).toHaveAttribute("data-particle-max-frame-step-ms", "64");
-  await expect(particleFlow).toHaveAttribute("data-particle-target-order", "grid-avatar-text");
-  await expect(particleFlow).toHaveAttribute("data-particle-path", "form-rotate-dissolve");
+  await expect(particleFlow).toHaveAttribute("data-particle-target-order", "main-view-behind-curtain");
+  await expect(particleFlow).toHaveAttribute("data-particle-path", "axis-gather-rotate-axis-release");
   await expect(particleFlow).toHaveAttribute("data-particle-polarities", "light-dark");
-  await expect(particleFlow).toHaveAttribute("data-particle-rotation-degrees", "155");
+  await expect(particleFlow).toHaveAttribute("data-particle-entry-axes", "light-vertical-dark-horizontal");
+  await expect(particleFlow).toHaveAttribute("data-particle-exit-axes", "opposite-axis-edges");
+  await expect(particleFlow).toHaveAttribute("data-particle-rotation-degrees", "540");
   await expect(particleFlow).toHaveAttribute("data-particle-taiji-geometry", "s-curve-dual-eyes");
+  await expect(particleFlow).toHaveAttribute("data-particle-coverage", "viewport-diagonal");
   await expect(particleFlow).toHaveAttribute("data-particle-count", "0");
   await expect(particleFlow).toHaveAttribute("data-particle-source-count", "0");
   await expect(particleFlow).toHaveAttribute("data-particle-target-count", "0");
-  await expect(particleFlow).toHaveAttribute("data-particle-flow-direction", "source-to-target");
-  await expect(particleFlow).toHaveAttribute("data-particle-mapping", "intro-to-main-anchors");
+  await expect(particleFlow).toHaveAttribute("data-particle-flow-direction", "axes-to-taiji-to-axes");
+  await expect(particleFlow).toHaveAttribute("data-particle-mapping", "axis-streams-to-viewport-taiji");
   await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-streak-primary]")).toHaveCount(0);
@@ -393,14 +396,14 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   );
   await expect(particleTransition).toHaveAttribute(
     "data-particle-flow-direction",
-    "source-to-target"
+    "axes-to-taiji-to-axes"
   );
   await expect(particleTransition).toHaveAttribute(
     "data-particle-mapping",
-    "intro-to-main-anchors"
+    "axis-streams-to-viewport-taiji"
   );
-  await expect(particleTransition).toHaveAttribute("data-particle-transition-model", "taiji-particle-formation");
-  await expect(particleTransition).toHaveAttribute("data-particle-target-order", "grid-avatar-text");
+  await expect(particleTransition).toHaveAttribute("data-particle-transition-model", "fullscreen-taiji-particle-wipe");
+  await expect(particleTransition).toHaveAttribute("data-particle-target-order", "main-view-behind-curtain");
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();

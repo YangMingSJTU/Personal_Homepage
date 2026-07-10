@@ -140,13 +140,6 @@ export default function IntroOpeningHero() {
 
     const sourceContent = section.querySelector(".wrap") as HTMLElement | null;
     const sourceFluid = section.querySelector("#background") as HTMLCanvasElement | null;
-    const sourceTextElements = Array.from(section.querySelectorAll(".content-title, .content-subtitle")) as HTMLElement[];
-    const targetTextElements = Array.from(
-      document.querySelectorAll("#main-view .profile-card h1, #main-view .profile-card p, #main-view .profile-card a span")
-    ) as HTMLElement[];
-    const targetAvatar = document.querySelector("#main-view .profile-avatar") as HTMLElement | null;
-    const targetGrid = document.querySelector("#main-view [data-interactive-go-background]") as HTMLElement | null;
-    const gridCellSize = Number(targetGrid?.getAttribute("data-cell-size")) || 46;
 
     stopParticleMorph();
     if (sourceContent) sourceContent.style.transition = "none";
@@ -158,16 +151,11 @@ export default function IntroOpeningHero() {
     setParticlePhase("disintegrate");
     const controller = startPptParticleMorph({
       canvas,
-      sourceTextElements,
-      targetTextElements,
-      targetAvatar,
-      targetGrid,
-      gridCellSize,
       onPhaseChange: setParticlePhase,
       onProgress: (progress) => {
-        const sourceDeparture = smoothRange(0.03, 0.32, progress);
-        const gridProgress = smoothRange(0.52, 0.84, progress);
-        const cardProgress = smoothRange(0.72, 0.97, progress);
+        const sourceDeparture = smoothRange(0.02, 0.24, progress);
+        const gridProgress = smoothRange(0.44, 0.6, progress);
+        const cardProgress = smoothRange(0.48, 0.64, progress);
 
         if (sourceContent) {
           sourceContent.style.opacity = (1 - sourceDeparture).toFixed(4);
@@ -178,7 +166,7 @@ export default function IntroOpeningHero() {
           sourceContent.style.filter = `blur(${(sourceDeparture * 5).toFixed(2)}px)`;
         }
         if (sourceFluid) {
-          sourceFluid.style.opacity = (1 - smoothRange(0.14, 0.58, progress)).toFixed(4);
+          sourceFluid.style.opacity = (1 - smoothRange(0.08, 0.3, progress)).toFixed(4);
         }
         mainView.style.opacity = gridProgress.toFixed(4);
         mainView.style.transform = `translate3d(0, ${((1 - gridProgress) * 2.5).toFixed(3)}vh, 0) scale(${(
@@ -491,19 +479,22 @@ export default function IntroOpeningHero() {
         data-intro-particle-transition
         data-particle-transition-state={particleState}
         data-particle-transition-phase={particlePhase}
-        data-particle-transition-model="taiji-particle-formation"
-        data-particle-transition-duration-ms="2100"
+        data-particle-transition-model="fullscreen-taiji-particle-wipe"
+        data-particle-transition-duration-ms="2300"
         data-particle-max-frame-step-ms="64"
-        data-particle-target-order="grid-avatar-text"
-        data-particle-path="form-rotate-dissolve"
+        data-particle-target-order="main-view-behind-curtain"
+        data-particle-path="axis-gather-rotate-axis-release"
         data-particle-polarities="light-dark"
-        data-particle-rotation-degrees="155"
+        data-particle-entry-axes="light-vertical-dark-horizontal"
+        data-particle-exit-axes="opposite-axis-edges"
+        data-particle-rotation-degrees="540"
         data-particle-taiji-geometry="s-curve-dual-eyes"
+        data-particle-coverage="viewport-diagonal"
         data-particle-count={particleCount}
         data-particle-source-count={sourcePointCount}
         data-particle-target-count={targetPointCount}
-        data-particle-flow-direction="source-to-target"
-        data-particle-mapping="intro-to-main-anchors"
+        data-particle-flow-direction="axes-to-taiji-to-axes"
+        data-particle-mapping="axis-streams-to-viewport-taiji"
       />
     </>
   );
