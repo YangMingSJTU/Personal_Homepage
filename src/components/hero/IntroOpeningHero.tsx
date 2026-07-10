@@ -44,9 +44,12 @@ const introTitle = "YangMing";
 const fluidScriptSrc = withBase("/vendor/webgl-fluid-background.js");
 const quoteInitialDelayMs = 520;
 const quoteHoldMs = 6000;
-const quoteTransitionMs = 1200;
-const quoteIncomingOffsetMs = 100;
-const quoteSweepWindowMs = 680;
+const quoteCharacterInMs = 520;
+const quoteCharacterOutMs = 480;
+const quoteInterludeMs = 220;
+const quoteSweepWindowMs = 820;
+const quoteTransitionMs = quoteSweepWindowMs * 2 + quoteCharacterInMs + quoteCharacterOutMs + quoteInterludeMs;
+const quoteInitialRevealMs = quoteSweepWindowMs + quoteCharacterInMs;
 
 type ParticleTransitionState = "idle" | "running" | "done";
 type QuotePhase = "waiting" | "entering" | "steady" | "transitioning";
@@ -69,10 +72,18 @@ function pickNextIntroQuote(currentQuote: string) {
   return introQuotes[(startIndex + offset) % introQuotes.length];
 }
 
+function getQuoteCharacterStep(length: number) {
+  return length > 1 ? Math.min(42, quoteSweepWindowMs / (length - 1)) : 0;
+}
+
+function getQuoteSweepDuration(quote: string) {
+  const length = Array.from(quote).length;
+  return Math.round(Math.max(0, length - 1) * getQuoteCharacterStep(length));
+}
+
 function getQuoteCharacterStyle(index: number, length: number, offset = 0) {
-  const step = length > 1 ? Math.min(34, quoteSweepWindowMs / (length - 1)) : 0;
   return {
-    "--quote-char-delay": `${Math.round(offset + index * step)}ms`
+    "--quote-char-delay": `${Math.round(offset + index * getQuoteCharacterStep(length))}ms`
   } as React.CSSProperties;
 }
 
@@ -314,7 +325,7 @@ export default function IntroOpeningHero() {
           setQuoteState((current) =>
             current.phase === "entering" ? { ...current, phase: "steady" } : current
           );
-        }, quoteTransitionMs);
+        }, quoteInitialRevealMs);
       }
     }, quoteInitialDelayMs);
 
@@ -408,11 +419,18 @@ export default function IntroOpeningHero() {
               data-intro-subtitle
               data-original-content={quoteState.active}
               data-outgoing-content={quoteState.outgoing ?? ""}
-              data-quote-rotation="left-to-right-overlap"
+              data-quote-rotation="left-to-right-sequenced"
               data-quote-phase={quoteState.phase}
               data-quote-visible={quoteState.phase === "waiting" ? "false" : "true"}
               data-quote-hold-ms={quoteHoldMs}
+              data-quote-interlude-ms={quoteInterludeMs}
               data-quote-transition-ms={quoteTransitionMs}
+              style={
+                {
+                  "--quote-enter-duration": `${quoteCharacterInMs}ms`,
+                  "--quote-exit-duration": `${quoteCharacterOutMs}ms`
+                } as React.CSSProperties
+              }
               aria-live="polite"
             >
               {quoteState.outgoing ? (
@@ -437,7 +455,9 @@ export default function IntroOpeningHero() {
               >
                 {renderQuoteCharacters(
                   quoteState.active,
-                  quoteState.phase === "transitioning" ? quoteIncomingOffsetMs : 0
+                  quoteState.phase === "transitioning" && quoteState.outgoing
+                    ? getQuoteSweepDuration(quoteState.outgoing) + quoteCharacterOutMs + quoteInterludeMs
+                    : 0
                 )}
               </span>
             </h3>

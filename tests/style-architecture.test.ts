@@ -43,7 +43,9 @@ describe("style architecture", () => {
     expect(introHero).toContain('data-particle-flow-direction="source-to-target"');
     expect(introHero).toContain('data-particle-mapping="intro-to-main-anchors"');
     expect(introHero).toContain("startPptParticleMorph");
-    expect(introHero).toContain('data-quote-rotation="left-to-right-overlap"');
+    expect(introHero).toContain('data-quote-rotation="left-to-right-sequenced"');
+    expect(introHero).toContain("data-quote-interlude-ms={quoteInterludeMs}");
+    expect(introHero).toContain("getQuoteSweepDuration(quoteState.outgoing)");
     expect(introHero).toContain("pickNextIntroQuote");
     expect(effectsCss).toContain(".intro-particle-morph");
     expect(effectsCss).not.toContain(".slide-transition-edge");

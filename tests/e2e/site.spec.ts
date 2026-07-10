@@ -95,10 +95,11 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(introTitle).toHaveCSS("animation-name", "none");
   const introSubtitle = hero.locator("[data-intro-subtitle]");
   await expect(introSubtitle).toBeVisible();
-  await expect(introSubtitle).toHaveAttribute("data-quote-rotation", "left-to-right-overlap");
+  await expect(introSubtitle).toHaveAttribute("data-quote-rotation", "left-to-right-sequenced");
   await expect(introSubtitle).toHaveAttribute("data-quote-visible", "true");
   await expect(introSubtitle).toHaveAttribute("data-quote-hold-ms", "6000");
-  await expect(introSubtitle).toHaveAttribute("data-quote-transition-ms", "1200");
+  await expect(introSubtitle).toHaveAttribute("data-quote-interlude-ms", "220");
+  await expect(introSubtitle).toHaveAttribute("data-quote-transition-ms", "2860");
   await expect(introSubtitle).toHaveAttribute("data-quote-phase", "steady");
   const selectedIntroQuote = await introSubtitle.getAttribute("data-original-content");
   expect(Array.from(introQuotes)).toContain(selectedIntroQuote);
@@ -118,13 +119,26 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
         activeCharacterCount: number;
         outgoing: string;
         outgoingCharacterCount: number;
+        outgoingEndMs: number;
         phase: string | null;
+        incomingStartMs: number;
       }>((resolve) => {
+        const milliseconds = (value: string) => Number.parseFloat(value) * (value.endsWith("ms") ? 1 : 1000);
         const readTransition = () => ({
           active: element.getAttribute("data-original-content") ?? "",
           activeCharacterCount: element.querySelectorAll("[data-active-quote] .intro-quote-char").length,
+          incomingStartMs: milliseconds(
+            getComputedStyle(element.querySelector("[data-active-quote] .intro-quote-char") as Element).animationDelay
+          ),
           outgoing: element.getAttribute("data-outgoing-content") ?? "",
           outgoingCharacterCount: element.querySelectorAll("[data-outgoing-quote] .intro-quote-char").length,
+          outgoingEndMs: (() => {
+            const characters = element.querySelectorAll("[data-outgoing-quote] .intro-quote-char");
+            const lastCharacter = characters[characters.length - 1];
+            if (!lastCharacter) return 0;
+            const style = getComputedStyle(lastCharacter);
+            return milliseconds(style.animationDelay) + milliseconds(style.animationDuration);
+          })(),
           phase: element.getAttribute("data-quote-phase")
         });
         let observer: MutationObserver;
@@ -146,8 +160,10 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   expect(quoteTransition.outgoing).toBe(selectedIntroQuote);
   expect(quoteTransition.outgoingCharacterCount).toBe(Array.from(quoteTransition.outgoing).length);
   expect(quoteTransition.phase).toBe("transitioning");
+  expect(quoteTransition.incomingStartMs - quoteTransition.outgoingEndMs).toBeGreaterThanOrEqual(200);
+  expect(quoteTransition.incomingStartMs - quoteTransition.outgoingEndMs).toBeLessThanOrEqual(240);
   await expect(introSubtitle).toHaveAttribute("data-quote-visible", "true");
-  await expect(introSubtitle).toHaveAttribute("data-quote-phase", "steady", { timeout: 2500 });
+  await expect(introSubtitle).toHaveAttribute("data-quote-phase", "steady", { timeout: 4000 });
   await expect(hero.locator("[data-outgoing-quote]")).toHaveCount(0);
   await expect(hero.getByRole("link", { name: "进入主视图" })).toHaveCount(0);
   await expect(hero.getByText("ENTER", { exact: true })).toHaveCount(0);

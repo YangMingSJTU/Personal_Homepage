@@ -96,12 +96,12 @@
 }
 
 .intro-quote-layer.is-entering .intro-quote-char {
-  animation: quote-character-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: quote-character-in var(--quote-enter-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: var(--quote-char-delay);
 }
 
 .intro-quote-layer.is-exiting .intro-quote-char {
-  animation: quote-character-out 360ms cubic-bezier(0.4, 0, 0.8, 0.2) both;
+  animation: quote-character-out var(--quote-exit-duration) cubic-bezier(0.4, 0, 0.8, 0.2) both;
   animation-delay: var(--quote-char-delay);
 }
 
