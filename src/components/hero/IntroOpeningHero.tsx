@@ -44,9 +44,18 @@ const introTitle = "YangMing";
 const fluidScriptSrc = withBase("/vendor/webgl-fluid-background.js");
 const quoteInitialDelayMs = 520;
 const quoteHoldMs = 6000;
-const quoteFadeMs = 360;
+const quoteTransitionMs = 1200;
+const quoteIncomingOffsetMs = 100;
+const quoteSweepWindowMs = 680;
 
 type ParticleTransitionState = "idle" | "running" | "done";
+type QuotePhase = "waiting" | "entering" | "steady" | "transitioning";
+
+interface QuoteState {
+  active: string;
+  outgoing: string | null;
+  phase: QuotePhase;
+}
 
 function pickIntroQuote() {
   return introQuotes[Math.floor(Math.random() * introQuotes.length)];
@@ -60,6 +69,27 @@ function pickNextIntroQuote(currentQuote: string) {
   return introQuotes[(startIndex + offset) % introQuotes.length];
 }
 
+function getQuoteCharacterStyle(index: number, length: number, offset = 0) {
+  const step = length > 1 ? Math.min(34, quoteSweepWindowMs / (length - 1)) : 0;
+  return {
+    "--quote-char-delay": `${Math.round(offset + index * step)}ms`
+  } as React.CSSProperties;
+}
+
+function renderQuoteCharacters(quote: string, delayOffset = 0) {
+  const characters = Array.from(quote);
+
+  return characters.map((letter, index) => (
+    <span
+      className="intro-quote-char"
+      key={`${letter}-${index}`}
+      style={getQuoteCharacterStyle(index, characters.length, delayOffset)}
+    >
+      {letter === " " ? "\u00a0" : letter}
+    </span>
+  ));
+}
+
 function smoothRange(start: number, end: number, value: number) {
   const normalized = Math.min(1, Math.max(0, (value - start) / (end - start)));
   return normalized * normalized * (3 - 2 * normalized);
@@ -71,9 +101,12 @@ export default function IntroOpeningHero() {
   const particleControllerRef = useRef<ReturnType<typeof startPptParticleMorph> | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
-  const [selectedQuote, setSelectedQuote] = useState<string>(introQuotes[0]);
+  const [quoteState, setQuoteState] = useState<QuoteState>({
+    active: introQuotes[0],
+    outgoing: null,
+    phase: "waiting"
+  });
   const [introLoaded, setIntroLoaded] = useState(false);
-  const [subtitleLoaded, setSubtitleLoaded] = useState(false);
   const [particleState, setParticleState] = useState<ParticleTransitionState>("idle");
   const [particleCount, setParticleCount] = useState(0);
   const [sourcePointCount, setSourcePointCount] = useState(0);
@@ -230,33 +263,59 @@ export default function IntroOpeningHero() {
     setParticleCount(0);
     setSourcePointCount(0);
     setTargetPointCount(0);
-    setSubtitleLoaded(false);
-    setSelectedQuote(pickIntroQuote());
+    setQuoteState({ active: pickIntroQuote(), outgoing: null, phase: "waiting" });
     window.config = { ...fluidConfig, PAUSED: reduceMotion };
     window.switchPage = { switched: false };
     const fadeTimer = window.setTimeout(() => setIntroLoaded(true), 0);
-    let quoteHoldTimer: number | undefined;
-    let quoteSwapTimer: number | undefined;
+    const quoteTimers = new Set<number>();
+
+    const scheduleQuoteTimer = (callback: () => void, delay: number) => {
+      const timer = window.setTimeout(() => {
+        quoteTimers.delete(timer);
+        callback();
+      }, delay);
+      quoteTimers.add(timer);
+    };
 
     const scheduleQuoteRotation = () => {
-      quoteHoldTimer = window.setTimeout(() => {
+      scheduleQuoteTimer(() => {
         if (leavingRef.current) return;
-        setSubtitleLoaded(false);
-        quoteSwapTimer = window.setTimeout(
-          () => {
-            if (leavingRef.current) return;
-            setSelectedQuote((currentQuote) => pickNextIntroQuote(currentQuote));
-            setSubtitleLoaded(true);
-            scheduleQuoteRotation();
-          },
-          reduceMotion ? 0 : quoteFadeMs
-        );
+        setQuoteState((current) => {
+          const nextQuote = pickNextIntroQuote(current.active);
+          return reduceMotion
+            ? { active: nextQuote, outgoing: null, phase: "steady" }
+            : { active: nextQuote, outgoing: current.active, phase: "transitioning" };
+        });
+
+        if (reduceMotion) {
+          scheduleQuoteRotation();
+          return;
+        }
+
+        scheduleQuoteTimer(() => {
+          if (leavingRef.current) return;
+          setQuoteState((current) => ({ ...current, outgoing: null, phase: "steady" }));
+          scheduleQuoteRotation();
+        }, quoteTransitionMs);
       }, quoteHoldMs);
     };
 
-    const subtitleTimer = window.setTimeout(() => {
-      setSubtitleLoaded(true);
+    scheduleQuoteTimer(() => {
+      if (leavingRef.current) return;
+      setQuoteState((current) => ({
+        ...current,
+        phase: reduceMotion ? "steady" : "entering"
+      }));
       scheduleQuoteRotation();
+
+      if (!reduceMotion) {
+        scheduleQuoteTimer(() => {
+          if (leavingRef.current) return;
+          setQuoteState((current) =>
+            current.phase === "entering" ? { ...current, phase: "steady" } : current
+          );
+        }, quoteTransitionMs);
+      }
     }, quoteInitialDelayMs);
 
     if (!reduceMotion && !window.__personalFluidScriptLoaded) {
@@ -313,9 +372,8 @@ export default function IntroOpeningHero() {
 
     return () => {
       window.clearTimeout(fadeTimer);
-      window.clearTimeout(subtitleTimer);
-      if (quoteHoldTimer !== undefined) window.clearTimeout(quoteHoldTimer);
-      if (quoteSwapTimer !== undefined) window.clearTimeout(quoteSwapTimer);
+      for (const timer of quoteTimers) window.clearTimeout(timer);
+      quoteTimers.clear();
       document.body.removeEventListener("wheel", handleWheel);
       document.removeEventListener("keydown", handleKeyDown);
       section.removeEventListener("touchstart", handleTouchStart);
@@ -346,16 +404,42 @@ export default function IntroOpeningHero() {
           <div className={`wrap fade${introLoaded ? " in" : ""}`}>
             <h2 className="content-title">{introTitle}</h2>
             <h3
-              className={`content-subtitle${subtitleLoaded ? " is-visible" : ""}`}
+              className="content-subtitle"
               data-intro-subtitle
-              data-original-content={selectedQuote}
-              data-quote-rotation="timed"
-              data-quote-visible={subtitleLoaded ? "true" : "false"}
+              data-original-content={quoteState.active}
+              data-outgoing-content={quoteState.outgoing ?? ""}
+              data-quote-rotation="left-to-right-overlap"
+              data-quote-phase={quoteState.phase}
+              data-quote-visible={quoteState.phase === "waiting" ? "false" : "true"}
               data-quote-hold-ms={quoteHoldMs}
+              data-quote-transition-ms={quoteTransitionMs}
+              aria-live="polite"
             >
-              {Array.from(selectedQuote).map((letter, index) => (
-                <span key={`${letter}-${index}`}>{letter === " " ? "\u00a0" : letter}</span>
-              ))}
+              {quoteState.outgoing ? (
+                <span
+                  className="intro-quote-layer is-outgoing is-exiting"
+                  data-outgoing-quote
+                  aria-hidden="true"
+                >
+                  {renderQuoteCharacters(quoteState.outgoing)}
+                </span>
+              ) : null}
+              <span
+                className={`intro-quote-layer ${
+                  quoteState.phase === "waiting"
+                    ? "is-waiting"
+                    : quoteState.phase === "steady"
+                      ? "is-steady"
+                      : "is-entering"
+                }`}
+                data-active-quote
+                key={quoteState.active}
+              >
+                {renderQuoteCharacters(
+                  quoteState.active,
+                  quoteState.phase === "transitioning" ? quoteIncomingOffsetMs : 0
+                )}
+              </span>
             </h3>
             <div className="arrow arrow-1" aria-hidden="true" onMouseEnter={enterMainView} />
             <div className="arrow arrow-2" aria-hidden="true" onMouseEnter={enterMainView} />

@@ -95,25 +95,60 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(introTitle).toHaveCSS("animation-name", "none");
   const introSubtitle = hero.locator("[data-intro-subtitle]");
   await expect(introSubtitle).toBeVisible();
-  await expect(introSubtitle).toHaveClass(/is-visible/);
-  await expect(introSubtitle).toHaveAttribute("data-quote-rotation", "timed");
+  await expect(introSubtitle).toHaveAttribute("data-quote-rotation", "left-to-right-overlap");
   await expect(introSubtitle).toHaveAttribute("data-quote-visible", "true");
   await expect(introSubtitle).toHaveAttribute("data-quote-hold-ms", "6000");
+  await expect(introSubtitle).toHaveAttribute("data-quote-transition-ms", "1200");
+  await expect(introSubtitle).toHaveAttribute("data-quote-phase", "steady");
   const selectedIntroQuote = await introSubtitle.getAttribute("data-original-content");
   expect(Array.from(introQuotes)).toContain(selectedIntroQuote);
-  await expect(hero.locator("[data-intro-subtitle] span")).toHaveCount(Array.from(selectedIntroQuote || "").length);
+  await expect(hero.locator("[data-active-quote] .intro-quote-char")).toHaveCount(
+    Array.from(selectedIntroQuote || "").length
+  );
   const titleBox = await introTitle.boundingBox();
   const subtitleBox = await introSubtitle.boundingBox();
   expect(titleBox).not.toBeNull();
   expect(subtitleBox).not.toBeNull();
   const titleSubtitleGap = subtitleBox!.y - (titleBox!.y + titleBox!.height);
   expect(titleSubtitleGap).toBeGreaterThan(test.info().project.name === "mobile" ? 26 : 44);
-  await expect
-    .poll(() => introSubtitle.getAttribute("data-original-content"), { timeout: 8000 })
-    .not.toBe(selectedIntroQuote);
-  const rotatedIntroQuote = await introSubtitle.getAttribute("data-original-content");
-  expect(Array.from(introQuotes)).toContain(rotatedIntroQuote);
+  const quoteTransition = await introSubtitle.evaluate(
+    (element, initialQuote) =>
+      new Promise<{
+        active: string;
+        activeCharacterCount: number;
+        outgoing: string;
+        outgoingCharacterCount: number;
+        phase: string | null;
+      }>((resolve) => {
+        const readTransition = () => ({
+          active: element.getAttribute("data-original-content") ?? "",
+          activeCharacterCount: element.querySelectorAll("[data-active-quote] .intro-quote-char").length,
+          outgoing: element.getAttribute("data-outgoing-content") ?? "",
+          outgoingCharacterCount: element.querySelectorAll("[data-outgoing-quote] .intro-quote-char").length,
+          phase: element.getAttribute("data-quote-phase")
+        });
+        let observer: MutationObserver;
+        const finishWhenTransitioning = () => {
+          const current = readTransition();
+          if (current.active === initialQuote || current.phase !== "transitioning" || !current.outgoing) return;
+          observer.disconnect();
+          resolve(current);
+        };
+        observer = new MutationObserver(finishWhenTransitioning);
+        observer.observe(element, { attributes: true, childList: true, subtree: true });
+        finishWhenTransitioning();
+      }),
+    selectedIntroQuote
+  );
+  expect(Array.from(introQuotes)).toContain(quoteTransition.active);
+  expect(quoteTransition.active).not.toBe(selectedIntroQuote);
+  expect(quoteTransition.activeCharacterCount).toBe(Array.from(quoteTransition.active).length);
+  expect(quoteTransition.outgoing).toBe(selectedIntroQuote);
+  expect(quoteTransition.outgoingCharacterCount).toBe(Array.from(quoteTransition.outgoing).length);
+  expect(quoteTransition.phase).toBe("transitioning");
   await expect(introSubtitle).toHaveAttribute("data-quote-visible", "true");
+  await expect(introSubtitle).toHaveAttribute("data-quote-phase", "steady", { timeout: 2500 });
+  await expect(hero.locator("[data-outgoing-quote]")).toHaveCount(0);
   await expect(hero.getByRole("link", { name: "进入主视图" })).toHaveCount(0);
   await expect(hero.getByText("ENTER", { exact: true })).toHaveCount(0);
   await expect
