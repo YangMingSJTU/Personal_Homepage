@@ -89,12 +89,31 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
     "webgl-fluid-opening"
   );
   await expect(hero.locator(".wrap.fade")).toHaveClass(/in/);
-  await expect(hero.locator(".content-title")).toHaveText("YangMing");
+  const introTitle = hero.locator(".content-title");
+  await expect(introTitle).toHaveText("YangMing");
+  await expect(introTitle).toHaveCSS("text-shadow", "none");
+  await expect(introTitle).toHaveCSS("animation-name", "none");
   const introSubtitle = hero.locator("[data-intro-subtitle]");
   await expect(introSubtitle).toBeVisible();
+  await expect(introSubtitle).toHaveClass(/is-visible/);
+  await expect(introSubtitle).toHaveAttribute("data-quote-rotation", "timed");
+  await expect(introSubtitle).toHaveAttribute("data-quote-visible", "true");
+  await expect(introSubtitle).toHaveAttribute("data-quote-hold-ms", "6000");
   const selectedIntroQuote = await introSubtitle.getAttribute("data-original-content");
   expect(Array.from(introQuotes)).toContain(selectedIntroQuote);
   await expect(hero.locator("[data-intro-subtitle] span")).toHaveCount(Array.from(selectedIntroQuote || "").length);
+  const titleBox = await introTitle.boundingBox();
+  const subtitleBox = await introSubtitle.boundingBox();
+  expect(titleBox).not.toBeNull();
+  expect(subtitleBox).not.toBeNull();
+  const titleSubtitleGap = subtitleBox!.y - (titleBox!.y + titleBox!.height);
+  expect(titleSubtitleGap).toBeGreaterThan(test.info().project.name === "mobile" ? 26 : 44);
+  await expect
+    .poll(() => introSubtitle.getAttribute("data-original-content"), { timeout: 8000 })
+    .not.toBe(selectedIntroQuote);
+  const rotatedIntroQuote = await introSubtitle.getAttribute("data-original-content");
+  expect(Array.from(introQuotes)).toContain(rotatedIntroQuote);
+  await expect(introSubtitle).toHaveAttribute("data-quote-visible", "true");
   await expect(hero.getByRole("link", { name: "进入主视图" })).toHaveCount(0);
   await expect(hero.getByText("ENTER", { exact: true })).toHaveCount(0);
   await expect

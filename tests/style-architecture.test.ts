@@ -43,8 +43,14 @@ describe("style architecture", () => {
     expect(introHero).toContain('data-particle-flow-direction="source-to-target"');
     expect(introHero).toContain('data-particle-mapping="intro-to-main-anchors"');
     expect(introHero).toContain("startPptParticleMorph");
+    expect(introHero).toContain('data-quote-rotation="timed"');
+    expect(introHero).toContain("pickNextIntroQuote");
     expect(effectsCss).toContain(".intro-particle-morph");
     expect(effectsCss).not.toContain(".slide-transition-edge");
+    expect(effectsCss).toMatch(/\.content-title\s*\{[^}]*text-shadow:\s*none;[^}]*animation:\s*none;/s);
+    expect(effectsCss).toContain(".content-subtitle.is-visible");
+    expect(effectsCss).not.toContain("@keyframes white-shadow");
+    expect(effectsCss).not.toContain("@keyframes letter-glow");
     expect(particleMorph).toContain("sampleTextPoints");
     expect(particleMorph).toContain("buildAmbientSources");
     expect(particleMorph).toContain("buildAvatarTargets");

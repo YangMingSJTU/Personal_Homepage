@@ -42,11 +42,22 @@ const fluidConfig = {
 
 const introTitle = "YangMing";
 const fluidScriptSrc = withBase("/vendor/webgl-fluid-background.js");
+const quoteInitialDelayMs = 520;
+const quoteHoldMs = 6000;
+const quoteFadeMs = 360;
 
 type ParticleTransitionState = "idle" | "running" | "done";
 
 function pickIntroQuote() {
   return introQuotes[Math.floor(Math.random() * introQuotes.length)];
+}
+
+function pickNextIntroQuote(currentQuote: string) {
+  if (introQuotes.length <= 1) return introQuotes[0] ?? currentQuote;
+  const currentIndex = introQuotes.findIndex((quote) => quote === currentQuote);
+  const startIndex = currentIndex >= 0 ? currentIndex : Math.floor(Math.random() * introQuotes.length);
+  const offset = 1 + Math.floor(Math.random() * (introQuotes.length - 1));
+  return introQuotes[(startIndex + offset) % introQuotes.length];
 }
 
 function smoothRange(start: number, end: number, value: number) {
@@ -219,11 +230,34 @@ export default function IntroOpeningHero() {
     setParticleCount(0);
     setSourcePointCount(0);
     setTargetPointCount(0);
+    setSubtitleLoaded(false);
     setSelectedQuote(pickIntroQuote());
     window.config = { ...fluidConfig, PAUSED: reduceMotion };
     window.switchPage = { switched: false };
     const fadeTimer = window.setTimeout(() => setIntroLoaded(true), 0);
-    const subtitleTimer = window.setTimeout(() => setSubtitleLoaded(true), 270);
+    let quoteHoldTimer: number | undefined;
+    let quoteSwapTimer: number | undefined;
+
+    const scheduleQuoteRotation = () => {
+      quoteHoldTimer = window.setTimeout(() => {
+        if (leavingRef.current) return;
+        setSubtitleLoaded(false);
+        quoteSwapTimer = window.setTimeout(
+          () => {
+            if (leavingRef.current) return;
+            setSelectedQuote((currentQuote) => pickNextIntroQuote(currentQuote));
+            setSubtitleLoaded(true);
+            scheduleQuoteRotation();
+          },
+          reduceMotion ? 0 : quoteFadeMs
+        );
+      }, quoteHoldMs);
+    };
+
+    const subtitleTimer = window.setTimeout(() => {
+      setSubtitleLoaded(true);
+      scheduleQuoteRotation();
+    }, quoteInitialDelayMs);
 
     if (!reduceMotion && !window.__personalFluidScriptLoaded) {
       const script = document.createElement("script");
@@ -280,6 +314,8 @@ export default function IntroOpeningHero() {
     return () => {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(subtitleTimer);
+      if (quoteHoldTimer !== undefined) window.clearTimeout(quoteHoldTimer);
+      if (quoteSwapTimer !== undefined) window.clearTimeout(quoteSwapTimer);
       document.body.removeEventListener("wheel", handleWheel);
       document.removeEventListener("keydown", handleKeyDown);
       section.removeEventListener("touchstart", handleTouchStart);
@@ -309,14 +345,17 @@ export default function IntroOpeningHero() {
 
           <div className={`wrap fade${introLoaded ? " in" : ""}`}>
             <h2 className="content-title">{introTitle}</h2>
-            <h3 className="content-subtitle" data-intro-subtitle data-original-content={selectedQuote}>
-              {subtitleLoaded
-                ? Array.from(selectedQuote).map((letter, index) => (
-                    <span key={`${letter}-${index}`} style={{ animationDelay: `${index * 55}ms` }}>
-                      {letter === " " ? "\u00a0" : letter}
-                    </span>
-                  ))
-                : "\u00a0"}
+            <h3
+              className={`content-subtitle${subtitleLoaded ? " is-visible" : ""}`}
+              data-intro-subtitle
+              data-original-content={selectedQuote}
+              data-quote-rotation="timed"
+              data-quote-visible={subtitleLoaded ? "true" : "false"}
+              data-quote-hold-ms={quoteHoldMs}
+            >
+              {Array.from(selectedQuote).map((letter, index) => (
+                <span key={`${letter}-${index}`}>{letter === " " ? "\u00a0" : letter}</span>
+              ))}
             </h3>
             <div className="arrow arrow-1" aria-hidden="true" onMouseEnter={enterMainView} />
             <div className="arrow arrow-2" aria-hidden="true" onMouseEnter={enterMainView} />
