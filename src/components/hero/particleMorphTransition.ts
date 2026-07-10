@@ -1,4 +1,5 @@
 export type ParticleMorphPhase = "disintegrate" | "stream" | "assemble" | "settle" | "done";
+export type ParticlePolarity = -1 | 1;
 
 type ParticleTargetKind = "text" | "avatar" | "grid" | "fallback";
 
@@ -16,6 +17,7 @@ type Point = {
 type ParticlePoint = Point & {
   color: RgbColor;
   kind?: ParticleTargetKind;
+  polarity?: ParticlePolarity;
 };
 
 type MorphParticle = {
@@ -23,13 +25,17 @@ type MorphParticle = {
   target: ParticlePoint;
   sourceControl: Point;
   entryControl: Point;
-  streamEntry: Point;
-  streamExit: Point;
+  orbitEntry: Point;
+  orbitExit: Point;
+  orbitCenter: Point;
+  orbitRadiusX: number;
+  orbitRadiusY: number;
+  orbitSweep: number;
+  orbitPhaseOffset: number;
+  polarity: ParticlePolarity;
   exitControl: Point;
   targetControl: Point;
   depth: number;
-  streamPhase: number;
-  streamRadius: number;
   size: number;
   alpha: number;
   delay: number;
@@ -61,8 +67,9 @@ const WHITE: RgbColor = { r: 238, g: 249, b: 255 };
 const CYAN: RgbColor = { r: 116, g: 229, b: 246 };
 const BLUE: RgbColor = { r: 103, g: 146, b: 255 };
 const VIOLET: RgbColor = { r: 191, g: 111, b: 255 };
+const GRAPHITE_VIOLET: RgbColor = { r: 118, g: 108, b: 188 };
 const GOLD: RgbColor = { r: 217, g: 189, b: 120 };
-const AMBIENT_COLORS: RgbColor[] = [CYAN, BLUE, VIOLET, WHITE];
+const AMBIENT_COLORS: RgbColor[] = [CYAN, BLUE, VIOLET, GRAPHITE_VIOLET, WHITE];
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -112,7 +119,8 @@ function sampleTextPoints(
   height: number,
   budget: number,
   color: RgbColor,
-  kind?: ParticleTargetKind
+  kind?: ParticleTargetKind,
+  polarity?: ParticlePolarity
 ) {
   const mask = document.createElement("canvas");
   const context = mask.getContext("2d", { willReadFrequently: true });
@@ -130,7 +138,7 @@ function sampleTextPoints(
   for (let y = 0; y < mask.height; y += step) {
     for (let x = 0; x < mask.width; x += step) {
       if (image[(y * mask.width + x) * 4 + 3] < 48) continue;
-      points.push({ x, y, color, kind });
+      points.push({ x, y, color, kind, polarity });
     }
   }
 
@@ -138,11 +146,12 @@ function sampleTextPoints(
 }
 
 function buildFallbackPoints(width: number, height: number, count: number, kind?: ParticleTargetKind) {
-  return Array.from({ length: count }, () => ({
+  return Array.from({ length: count }, (_, index): ParticlePoint => ({
     x: width * (0.36 + Math.random() * 0.28),
     y: height * (0.36 + Math.random() * 0.24),
     color: Math.random() > 0.34 ? WHITE : CYAN,
-    kind
+    kind,
+    polarity: kind ? (index % 2 === 0 ? 1 : -1) : undefined
   }));
 }
 
@@ -174,8 +183,9 @@ function buildAvatarTargets(avatar: HTMLElement | null, count: number) {
     return {
       x: centerX + Math.cos(angle) * radius,
       y: centerY + Math.sin(angle) * radius,
-      color: ring ? WHITE : GOLD,
-      kind: "avatar"
+      color: ring ? WHITE : index % 3 === 0 ? GOLD : GRAPHITE_VIOLET,
+      kind: "avatar",
+      polarity: ring ? 1 : -1
     };
   });
 }
@@ -190,11 +200,13 @@ function buildGridTargets(grid: HTMLElement | null, cellSize: number, count: num
   return Array.from({ length: count }, (_, index): ParticlePoint => {
     const rawX = rect.left + Math.random() * rect.width;
     const rawY = rect.top + Math.random() * rect.height;
+    const polarity: ParticlePolarity = index % 2 === 0 ? 1 : -1;
     return {
       x: originX + Math.round((rawX - originX) / cell) * cell,
       y: originY + Math.round((rawY - originY) / cell) * cell,
-      color: index % 5 === 0 ? WHITE : CYAN,
-      kind: "grid"
+      color: polarity === 1 ? (index % 6 === 0 ? WHITE : CYAN) : GRAPHITE_VIOLET,
+      kind: "grid",
+      polarity
     };
   });
 }
@@ -209,6 +221,23 @@ function sortByPolarPosition(points: ParticlePoint[], width: number, height: num
   });
 }
 
+export function getTaijiOrbitPoint(
+  centerX: number,
+  centerY: number,
+  radiusX: number,
+  radiusY: number,
+  polarity: ParticlePolarity,
+  progress: number,
+  sweepRadians: number
+) {
+  const startAngle = polarity === 1 ? -Math.PI / 2 : Math.PI / 2;
+  const angle = startAngle + polarity * sweepRadians * clamp(progress, 0, 1);
+  return {
+    x: centerX + Math.cos(angle) * radiusX,
+    y: centerY + Math.sin(angle) * radiusY
+  };
+}
+
 function buildParticles(
   sources: ParticlePoint[],
   targets: ParticlePoint[],
@@ -218,6 +247,8 @@ function buildParticles(
 ) {
   const orderedSources = sortByPolarPosition(sources, width, height);
   const orderedTargets = sortByPolarPosition(targets, width, height);
+  const lightTargets = orderedTargets.filter((target) => target.polarity !== -1);
+  const darkTargets = orderedTargets.filter((target) => target.polarity === -1);
   const targetDelay: Record<ParticleTargetKind, number> = {
     grid: 0,
     avatar: 0.04,
@@ -233,28 +264,59 @@ function buildParticles(
 
   return Array.from({ length: count }, (_, index): MorphParticle => {
     const source = orderedSources[Math.floor((index / count) * orderedSources.length) % orderedSources.length];
-    const target = orderedTargets[Math.floor((index / count) * orderedTargets.length) % orderedTargets.length];
+    const polarity: ParticlePolarity = index % 2 === 0 ? 1 : -1;
+    const preferredTargets = polarity === 1 ? lightTargets : darkTargets;
+    const targetPool = preferredTargets.length > 0 ? preferredTargets : orderedTargets;
+    const polarityIndex = Math.floor(index / 2);
+    const polarityCount = Math.ceil(count / 2);
+    const target = targetPool[Math.floor((polarityIndex / polarityCount) * targetPool.length) % targetPool.length];
     const targetKind = target.kind ?? "fallback";
-    const lane = (index % 3) - 1;
-    const strand = ((Math.floor(index / 3) % 9) - 4) / 4;
+    const strand = ((Math.floor(index / 2) % 11) - 5) / 5;
     const depth = ((index * 37) % 101) / 100;
-    const jitter = (Math.random() - 0.5) * (8 + depth * 10);
-    const streamEntry = {
-      x:
-        width * 0.5 +
-        lane * width * (0.025 + depth * 0.018) +
-        strand * width * (0.012 + depth * 0.008) +
-        jitter,
-      y: height * (0.41 + (depth - 0.5) * 0.045 + strand * 0.028)
+    const baseRadius = Math.min(width, height) * (width < 720 ? 0.17 : 0.22);
+    const orbitCenter = {
+      x: width * 0.5 + polarity * strand * baseRadius * 0.055,
+      y: height * 0.52 - polarity * baseRadius * 0.11 + (depth - 0.5) * baseRadius * 0.12
     };
-    const streamExit = {
-      x:
-        width * 0.5 -
-        lane * width * (0.052 + depth * 0.024) +
-        strand * width * (0.02 + depth * 0.009) -
-        jitter * 0.8,
-      y: height * (0.67 + (depth - 0.5) * 0.055 - strand * 0.024)
-    };
+    const orbitRadiusX = baseRadius * (0.9 + depth * 0.2 + Math.abs(strand) * 0.09);
+    const orbitRadiusY = baseRadius * (0.64 + depth * 0.16 + Math.abs(strand) * 0.06);
+    const orbitSweep = Math.PI * (1 + depth * 0.12 + Math.abs(strand) * 0.04);
+    const orbitEntry = getTaijiOrbitPoint(
+      orbitCenter.x,
+      orbitCenter.y,
+      orbitRadiusX,
+      orbitRadiusY,
+      polarity,
+      0,
+      orbitSweep
+    );
+    const orbitEntryNext = getTaijiOrbitPoint(
+      orbitCenter.x,
+      orbitCenter.y,
+      orbitRadiusX,
+      orbitRadiusY,
+      polarity,
+      0.07,
+      orbitSweep
+    );
+    const orbitExit = getTaijiOrbitPoint(
+      orbitCenter.x,
+      orbitCenter.y,
+      orbitRadiusX,
+      orbitRadiusY,
+      polarity,
+      1,
+      orbitSweep
+    );
+    const orbitExitPrevious = getTaijiOrbitPoint(
+      orbitCenter.x,
+      orbitCenter.y,
+      orbitRadiusX,
+      orbitRadiusY,
+      polarity,
+      0.93,
+      orbitSweep
+    );
     const sourceSweep = (source.y / Math.max(1, height)) * 0.025 +
       (Math.abs(source.x - width / 2) / Math.max(1, width)) * 0.035;
     const delay = clamp(sourceSweep + targetDelay[targetKind] + Math.random() * 0.014, 0, 0.16);
@@ -263,26 +325,30 @@ function buildParticles(
       source,
       target,
       sourceControl: {
-        x: source.x + (streamEntry.x - source.x) * 0.38 + lane * (18 + depth * 26),
-        y: source.y + (streamEntry.y - source.y) * 0.18 - (1 - depth) * 24
+        x: source.x + (orbitEntry.x - source.x) * 0.42 + polarity * (14 + depth * 18),
+        y: source.y + (orbitEntry.y - source.y) * 0.24 - strand * 16
       },
       entryControl: {
-        x: streamEntry.x + lane * (24 + depth * 34),
-        y: streamEntry.y - height * (0.075 + depth * 0.025)
+        x: orbitEntry.x - (orbitEntryNext.x - orbitEntry.x) * 0.72,
+        y: orbitEntry.y - (orbitEntryNext.y - orbitEntry.y) * 0.72
       },
-      streamEntry,
-      streamExit,
+      orbitEntry,
+      orbitExit,
+      orbitCenter,
+      orbitRadiusX,
+      orbitRadiusY,
+      orbitSweep,
+      orbitPhaseOffset: strand * 0.13 + (depth - 0.5) * 0.04,
+      polarity,
       exitControl: {
-        x: streamExit.x - lane * (30 + depth * 42),
-        y: streamExit.y + height * (0.07 + depth * 0.02)
+        x: orbitExit.x + (orbitExit.x - orbitExitPrevious.x) * 0.78,
+        y: orbitExit.y + (orbitExit.y - orbitExitPrevious.y) * 0.78
       },
       targetControl: {
-        x: streamExit.x + (target.x - streamExit.x) * 0.64 - lane * (18 + depth * 30),
-        y: streamExit.y + (target.y - streamExit.y) * 0.46 + (1 - depth) * 20
+        x: orbitExit.x + (target.x - orbitExit.x) * 0.64 + polarity * strand * 24,
+        y: orbitExit.y + (target.y - orbitExit.y) * 0.46 + (1 - depth) * 18
       },
       depth,
-      streamPhase: lane * 1.25 + strand * 1.7 + depth * Math.PI,
-      streamRadius: 17 + depth * 31 + Math.abs(strand) * 8,
       size: 0.7 + depth * 1.65 + (index % 17 === 0 ? 0.85 : 0),
       alpha: 0.38 + depth * 0.42,
       delay,
@@ -305,37 +371,39 @@ function cubicPoint(start: Point, controlA: Point, controlB: Point, end: Point, 
   };
 }
 
-function pointOnMagneticPath(particle: MorphParticle, progress: number) {
-  if (progress <= 0.3) {
-    const local = easeInOutCubic(progress / 0.3);
+function pointOnTaijiPath(particle: MorphParticle, progress: number) {
+  if (progress <= 0.28) {
+    const local = easeInOutCubic(progress / 0.28);
     return cubicPoint(
       particle.source,
       particle.sourceControl,
       particle.entryControl,
-      particle.streamEntry,
+      particle.orbitEntry,
       local
     );
   }
 
-  if (progress <= 0.64) {
-    const local = smoothstep(0, 1, (progress - 0.3) / 0.34);
-    const envelope = Math.sin(Math.PI * local);
-    const orbit = particle.streamPhase + local * Math.PI * 2;
-    return {
-      x:
-        particle.streamEntry.x +
-        (particle.streamExit.x - particle.streamEntry.x) * local +
-        Math.cos(orbit) * particle.streamRadius * envelope,
-      y:
-        particle.streamEntry.y +
-        (particle.streamExit.y - particle.streamEntry.y) * local +
-        Math.sin(orbit) * particle.streamRadius * 0.32 * envelope
-    };
+  if (progress <= 0.68) {
+    const orbitProgress = smoothstep(0, 1, (progress - 0.28) / 0.4);
+    const local = clamp(
+      orbitProgress + particle.orbitPhaseOffset * Math.sin(Math.PI * orbitProgress),
+      0,
+      1
+    );
+    return getTaijiOrbitPoint(
+      particle.orbitCenter.x,
+      particle.orbitCenter.y,
+      particle.orbitRadiusX,
+      particle.orbitRadiusY,
+      particle.polarity,
+      local,
+      particle.orbitSweep
+    );
   }
 
-  const local = easeInOutCubic((progress - 0.64) / 0.36);
+  const local = easeInOutCubic((progress - 0.68) / 0.32);
   return cubicPoint(
-    particle.streamExit,
+    particle.orbitExit,
     particle.exitControl,
     particle.targetControl,
     particle.target,
@@ -355,16 +423,18 @@ function drawParticle(context: CanvasRenderingContext2D, particle: MorphParticle
   const local = (progress - particle.delay) / particle.travelDuration;
   if (local <= 0 || local >= 1) return;
 
-  const current = pointOnMagneticPath(particle, local);
-  const trailA = pointOnMagneticPath(particle, Math.max(0, local - particle.trailStep));
-  const trailB = pointOnMagneticPath(particle, Math.max(0, local - particle.trailStep * 2.1));
-  const trailC = pointOnMagneticPath(particle, Math.max(0, local - particle.trailStep * 3.3));
-  const color = mixColor(particle.source.color, particle.target.color, smoothstep(0.46, 0.92, local));
+  const current = pointOnTaijiPath(particle, local);
+  const trailA = pointOnTaijiPath(particle, Math.max(0, local - particle.trailStep));
+  const trailB = pointOnTaijiPath(particle, Math.max(0, local - particle.trailStep * 2.1));
+  const trailC = pointOnTaijiPath(particle, Math.max(0, local - particle.trailStep * 3.3));
+  const polarityColor = particle.polarity === 1 ? CYAN : GRAPHITE_VIOLET;
+  const separatedColor = mixColor(particle.source.color, polarityColor, smoothstep(0.08, 0.38, local));
+  const color = mixColor(separatedColor, particle.target.color, smoothstep(0.68, 0.95, local));
   const fadeIn = smoothstep(0, 0.08, local);
   const fadeOut = 1 - smoothstep(0.9, 1, local);
-  const streamBoost = smoothstep(0.22, 0.42, local) * (1 - smoothstep(0.68, 0.86, local));
+  const orbitBoost = smoothstep(0.2, 0.4, local) * (1 - smoothstep(0.7, 0.88, local));
   const alpha = particle.alpha * fadeIn * fadeOut;
-  const size = particle.size * (1 + streamBoost * (0.52 + particle.depth * 0.28));
+  const size = particle.size * (1 + orbitBoost * (0.52 + particle.depth * 0.28));
 
   context.globalAlpha = alpha * 0.68;
   context.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.92)`;
@@ -379,7 +449,7 @@ function drawParticle(context: CanvasRenderingContext2D, particle: MorphParticle
   context.globalAlpha = alpha * 0.24;
   context.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.28)`;
   context.beginPath();
-  context.arc(current.x, current.y, size * (2.4 + streamBoost * 1.2), 0, Math.PI * 2);
+  context.arc(current.x, current.y, size * (2.4 + orbitBoost * 1.2), 0, Math.PI * 2);
   context.fill();
 
   context.globalAlpha = alpha;
@@ -389,32 +459,45 @@ function drawParticle(context: CanvasRenderingContext2D, particle: MorphParticle
   context.fill();
 }
 
-function drawStreamField(context: CanvasRenderingContext2D, width: number, height: number, progress: number) {
-  const intensity = smoothstep(0.12, 0.3, progress) * (1 - smoothstep(0.62, 0.8, progress));
+function drawTaijiFlowField(context: CanvasRenderingContext2D, width: number, height: number, progress: number) {
+  const intensity = smoothstep(0.1, 0.28, progress) * (1 - smoothstep(0.66, 0.84, progress));
   if (intensity <= 0) return;
 
-  const colors = [VIOLET, WHITE, CYAN];
+  const centerX = width * 0.5;
+  const baseRadius = Math.min(width, height) * (width < 720 ? 0.17 : 0.22);
+  const radiusX = baseRadius;
+  const radiusY = baseRadius * 0.7;
+  const sweep = Math.PI * 1.08;
   context.save();
   context.lineCap = "round";
 
-  for (let index = 0; index < 3; index += 1) {
-    const lane = index - 1;
-    const color = colors[index];
-    context.globalAlpha = intensity * (index === 1 ? 0.34 : 0.24);
-    context.strokeStyle = `rgb(${color.r} ${color.g} ${color.b})`;
-    context.lineWidth = index === 1 ? 1.35 : 0.9;
-    context.setLineDash([2 + index, 14 + index * 4]);
-    context.lineDashOffset = -progress * 320 + lane * 12;
+  for (const polarity of [1, -1] as const) {
+    const color = polarity === 1 ? CYAN : VIOLET;
+    const centerY = height * 0.52 - polarity * baseRadius * 0.11;
     context.beginPath();
-    context.moveTo(width * (0.5 + lane * 0.03), height * 0.29);
-    context.bezierCurveTo(
-      width * (0.5 + lane * 0.075),
-      height * 0.42,
-      width * (0.5 - lane * 0.1),
-      height * 0.58,
-      width * (0.5 - lane * 0.065),
-      height * 0.73
-    );
+    for (let step = 0; step <= 48; step += 1) {
+      const point = getTaijiOrbitPoint(
+        centerX,
+        centerY,
+        radiusX,
+        radiusY,
+        polarity,
+        step / 48,
+        sweep
+      );
+      if (step === 0) context.moveTo(point.x, point.y);
+      else context.lineTo(point.x, point.y);
+    }
+    context.globalAlpha = intensity * 0.08;
+    context.strokeStyle = `rgb(${color.r} ${color.g} ${color.b})`;
+    context.lineWidth = 4.5;
+    context.setLineDash([]);
+    context.stroke();
+
+    context.globalAlpha = intensity * (polarity === 1 ? 0.38 : 0.3);
+    context.lineWidth = polarity === 1 ? 1.35 : 1.1;
+    context.setLineDash([3, 15]);
+    context.lineDashOffset = -progress * 300 * polarity;
     context.stroke();
   }
 
@@ -436,13 +519,13 @@ function drawGridIgnition(context: CanvasRenderingContext2D, targets: ParticlePo
     if (intensity <= 0) continue;
 
     context.globalAlpha = intensity * 0.16;
-    context.fillStyle = "rgba(116, 229, 246, 0.28)";
+    context.fillStyle = `rgba(${target.color.r}, ${target.color.g}, ${target.color.b}, 0.28)`;
     context.beginPath();
     context.arc(target.x, target.y, 5.5, 0, Math.PI * 2);
     context.fill();
 
     context.globalAlpha = intensity * 0.72;
-    context.fillStyle = "rgba(238, 249, 255, 0.94)";
+    context.fillStyle = `rgba(${Math.min(255, target.color.r + 28)}, ${Math.min(255, target.color.g + 28)}, ${Math.min(255, target.color.b + 28)}, 0.94)`;
     context.beginPath();
     context.arc(target.x, target.y, 1.1, 0, Math.PI * 2);
     context.fill();
@@ -482,8 +565,8 @@ function drawTargetHalo(context: CanvasRenderingContext2D, avatar: HTMLElement |
 }
 
 export function resolveParticlePhase(progress: number): ParticleMorphPhase {
-  if (progress < 0.26) return "disintegrate";
-  if (progress < 0.58) return "stream";
+  if (progress < 0.24) return "disintegrate";
+  if (progress < 0.64) return "stream";
   if (progress < 0.9) return "assemble";
   if (progress < 1) return "settle";
   return "done";
@@ -496,7 +579,7 @@ export function startPptParticleMorph({
   targetAvatar,
   targetGrid,
   gridCellSize,
-  duration = 1950,
+  duration = 2100,
   onProgress,
   onPhaseChange,
   onComplete
@@ -529,7 +612,7 @@ export function startPptParticleMorph({
 
   const targetTextBudget = Math.round(particleCount * 0.3);
   const avatarBudget = Math.round(particleCount * 0.25);
-  const targetText = sampleTextPoints(targetTextElements, width, height, targetTextBudget, WHITE, "text");
+  const targetText = sampleTextPoints(targetTextElements, width, height, targetTextBudget, WHITE, "text", 1);
   const avatarTargets = buildAvatarTargets(targetAvatar, avatarBudget);
   const gridTargets = buildGridTargets(
     targetGrid,
@@ -580,7 +663,7 @@ export function startPptParticleMorph({
     }
 
     context.globalCompositeOperation = "screen";
-    drawStreamField(context, width, height, progress);
+    drawTaijiFlowField(context, width, height, progress);
     drawGridIgnition(context, gridTargets, progress);
     drawTargetHalo(context, targetAvatar, progress);
     for (const particle of particles) drawParticle(context, particle, progress);

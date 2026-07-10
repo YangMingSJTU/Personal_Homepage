@@ -139,6 +139,7 @@ export default function IntroOpeningHero() {
     if (!canvas || !section) return false;
 
     const sourceContent = section.querySelector(".wrap") as HTMLElement | null;
+    const sourceFluid = section.querySelector("#background") as HTMLCanvasElement | null;
     const sourceTextElements = Array.from(section.querySelectorAll(".content-title, .content-subtitle")) as HTMLElement[];
     const targetTextElements = Array.from(
       document.querySelectorAll("#main-view .profile-card h1, #main-view .profile-card p, #main-view .profile-card a span")
@@ -164,9 +165,9 @@ export default function IntroOpeningHero() {
       gridCellSize,
       onPhaseChange: setParticlePhase,
       onProgress: (progress) => {
-        const sourceDeparture = smoothRange(0.03, 0.34, progress);
-        const gridProgress = smoothRange(0.42, 0.8, progress);
-        const cardProgress = smoothRange(0.66, 0.96, progress);
+        const sourceDeparture = smoothRange(0.03, 0.32, progress);
+        const gridProgress = smoothRange(0.52, 0.84, progress);
+        const cardProgress = smoothRange(0.72, 0.97, progress);
 
         if (sourceContent) {
           sourceContent.style.opacity = (1 - sourceDeparture).toFixed(4);
@@ -175,6 +176,9 @@ export default function IntroOpeningHero() {
             sourceDeparture * 0.035
           ).toFixed(4)})`;
           sourceContent.style.filter = `blur(${(sourceDeparture * 5).toFixed(2)}px)`;
+        }
+        if (sourceFluid) {
+          sourceFluid.style.opacity = (1 - smoothRange(0.14, 0.58, progress)).toFixed(4);
         }
         mainView.style.opacity = gridProgress.toFixed(4);
         mainView.style.transform = `translate3d(0, ${((1 - gridProgress) * 2.5).toFixed(3)}vh, 0) scale(${(
@@ -204,6 +208,7 @@ export default function IntroOpeningHero() {
           profileCardInner.style.opacity = "";
           profileCardInner.style.transform = "";
         }
+        if (sourceFluid) sourceFluid.style.opacity = "";
         window.__stopWebglFluidBackground?.();
         section.style.visibility = "hidden";
         window.dispatchEvent(new Event("resize"));
@@ -355,12 +360,14 @@ export default function IntroOpeningHero() {
     section.style.transform = "";
     section.style.visibility = "";
     const sourceContent = section.querySelector(".wrap") as HTMLElement | null;
+    const sourceFluid = section.querySelector("#background") as HTMLCanvasElement | null;
     if (sourceContent) {
       sourceContent.style.opacity = "";
       sourceContent.style.transform = "";
       sourceContent.style.filter = "";
       sourceContent.style.transition = "";
     }
+    if (sourceFluid) sourceFluid.style.opacity = "";
 
     const handleWheel = (event: WheelEvent) => {
       if (event.deltaY <= 20) return;
@@ -484,11 +491,13 @@ export default function IntroOpeningHero() {
         data-intro-particle-transition
         data-particle-transition-state={particleState}
         data-particle-transition-phase={particlePhase}
-        data-particle-transition-model="three-act-magnetic-field"
-        data-particle-transition-duration-ms="1950"
+        data-particle-transition-model="abstract-taiji-particle-flow"
+        data-particle-transition-duration-ms="2100"
         data-particle-max-frame-step-ms="64"
         data-particle-target-order="grid-avatar-text"
-        data-particle-path="braided-field"
+        data-particle-path="counter-rotating-dual-flow"
+        data-particle-polarities="light-dark"
+        data-particle-rotation-degrees="180-210"
         data-particle-count={particleCount}
         data-particle-source-count={sourcePointCount}
         data-particle-target-count={targetPointCount}
