@@ -491,13 +491,14 @@ export default function IntroOpeningHero() {
         data-intro-particle-transition
         data-particle-transition-state={particleState}
         data-particle-transition-phase={particlePhase}
-        data-particle-transition-model="abstract-taiji-particle-flow"
+        data-particle-transition-model="taiji-particle-formation"
         data-particle-transition-duration-ms="2100"
         data-particle-max-frame-step-ms="64"
         data-particle-target-order="grid-avatar-text"
-        data-particle-path="counter-rotating-dual-flow"
+        data-particle-path="form-rotate-dissolve"
         data-particle-polarities="light-dark"
-        data-particle-rotation-degrees="180-210"
+        data-particle-rotation-degrees="155"
+        data-particle-taiji-geometry="s-curve-dual-eyes"
         data-particle-count={particleCount}
         data-particle-source-count={sourcePointCount}
         data-particle-target-count={targetPointCount}

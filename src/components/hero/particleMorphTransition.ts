@@ -25,13 +25,9 @@ type MorphParticle = {
   target: ParticlePoint;
   sourceControl: Point;
   entryControl: Point;
-  orbitEntry: Point;
-  orbitExit: Point;
-  orbitCenter: Point;
-  orbitRadiusX: number;
-  orbitRadiusY: number;
-  orbitSweep: number;
-  orbitPhaseOffset: number;
+  taijiEntry: Point;
+  taijiExit: Point;
+  taijiCenter: Point;
   polarity: ParticlePolarity;
   exitControl: Point;
   targetControl: Point;
@@ -70,6 +66,9 @@ const VIOLET: RgbColor = { r: 191, g: 111, b: 255 };
 const GRAPHITE_VIOLET: RgbColor = { r: 118, g: 108, b: 188 };
 const GOLD: RgbColor = { r: 217, g: 189, b: 120 };
 const AMBIENT_COLORS: RgbColor[] = [CYAN, BLUE, VIOLET, GRAPHITE_VIOLET, WHITE];
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const TAIJI_ENTRY_ANGLE = -Math.PI * 0.08;
+const TAIJI_ROTATION = Math.PI * 0.86;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -221,20 +220,51 @@ function sortByPolarPosition(points: ParticlePoint[], width: number, height: num
   });
 }
 
-export function getTaijiOrbitPoint(
-  centerX: number,
-  centerY: number,
-  radiusX: number,
-  radiusY: number,
-  polarity: ParticlePolarity,
-  progress: number,
-  sweepRadians: number
-) {
-  const startAngle = polarity === 1 ? -Math.PI / 2 : Math.PI / 2;
-  const angle = startAngle + polarity * sweepRadians * clamp(progress, 0, 1);
+export function getTaijiPolarity(x: number, y: number, radius: number): ParticlePolarity {
+  const halfRadius = radius / 2;
+  const eyeRadius = radius * 0.13;
+  if (Math.hypot(x, y + halfRadius) <= eyeRadius) return 1;
+  if (Math.hypot(x, y - halfRadius) <= eyeRadius) return -1;
+
+  const localY = y < 0 ? y + halfRadius : y - halfRadius;
+  const curveX = Math.sqrt(Math.max(0, halfRadius * halfRadius - localY * localY));
+  const boundaryX = y < 0 ? curveX : -curveX;
+  return x >= boundaryX ? 1 : -1;
+}
+
+function rotatePoint(point: Point, center: Point, angle: number, scale = 1) {
+  const offsetX = (point.x - center.x) * scale;
+  const offsetY = (point.y - center.y) * scale;
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
   return {
-    x: centerX + Math.cos(angle) * radiusX,
-    y: centerY + Math.sin(angle) * radiusY
+    x: center.x + offsetX * cosine - offsetY * sine,
+    y: center.y + offsetX * sine + offsetY * cosine
+  };
+}
+
+function buildTaijiAnchor(index: number, count: number, width: number, height: number) {
+  const radius = Math.min(width, height) * (width < 720 ? 0.27 : 0.22);
+  const center = { x: width * 0.5, y: height * 0.52 };
+  const normalizedRadius = Math.sqrt((index + 0.5) / Math.max(1, count));
+  const angle = index * GOLDEN_ANGLE;
+  const local = {
+    x: Math.cos(angle) * radius * normalizedRadius * 0.97,
+    y: Math.sin(angle) * radius * normalizedRadius * 0.97
+  };
+  const polarity = getTaijiPolarity(local.x, local.y, radius);
+  const entry = rotatePoint(
+    { x: center.x + local.x, y: center.y + local.y },
+    center,
+    TAIJI_ENTRY_ANGLE
+  );
+
+  return {
+    center,
+    entry,
+    exit: rotatePoint(entry, center, TAIJI_ROTATION),
+    polarity,
+    radius
   };
 }
 
@@ -261,99 +291,64 @@ function buildParticles(
     text: 0.975,
     fallback: 0.92
   };
+  let lightTargetIndex = 0;
+  let darkTargetIndex = 0;
 
   return Array.from({ length: count }, (_, index): MorphParticle => {
     const source = orderedSources[Math.floor((index / count) * orderedSources.length) % orderedSources.length];
-    const polarity: ParticlePolarity = index % 2 === 0 ? 1 : -1;
+    const taiji = buildTaijiAnchor(index, count, width, height);
+    const polarity = taiji.polarity;
     const preferredTargets = polarity === 1 ? lightTargets : darkTargets;
     const targetPool = preferredTargets.length > 0 ? preferredTargets : orderedTargets;
-    const polarityIndex = Math.floor(index / 2);
-    const polarityCount = Math.ceil(count / 2);
-    const target = targetPool[Math.floor((polarityIndex / polarityCount) * targetPool.length) % targetPool.length];
+    const poolIndex = polarity === 1 ? lightTargetIndex++ : darkTargetIndex++;
+    const target = targetPool[poolIndex % targetPool.length];
     const targetKind = target.kind ?? "fallback";
-    const strand = ((Math.floor(index / 2) % 11) - 5) / 5;
     const depth = ((index * 37) % 101) / 100;
-    const baseRadius = Math.min(width, height) * (width < 720 ? 0.17 : 0.22);
-    const orbitCenter = {
-      x: width * 0.5 + polarity * strand * baseRadius * 0.055,
-      y: height * 0.52 - polarity * baseRadius * 0.11 + (depth - 0.5) * baseRadius * 0.12
+    const entryOffset = {
+      x: taiji.entry.x - taiji.center.x,
+      y: taiji.entry.y - taiji.center.y
     };
-    const orbitRadiusX = baseRadius * (0.9 + depth * 0.2 + Math.abs(strand) * 0.09);
-    const orbitRadiusY = baseRadius * (0.64 + depth * 0.16 + Math.abs(strand) * 0.06);
-    const orbitSweep = Math.PI * (1 + depth * 0.12 + Math.abs(strand) * 0.04);
-    const orbitEntry = getTaijiOrbitPoint(
-      orbitCenter.x,
-      orbitCenter.y,
-      orbitRadiusX,
-      orbitRadiusY,
-      polarity,
-      0,
-      orbitSweep
-    );
-    const orbitEntryNext = getTaijiOrbitPoint(
-      orbitCenter.x,
-      orbitCenter.y,
-      orbitRadiusX,
-      orbitRadiusY,
-      polarity,
-      0.07,
-      orbitSweep
-    );
-    const orbitExit = getTaijiOrbitPoint(
-      orbitCenter.x,
-      orbitCenter.y,
-      orbitRadiusX,
-      orbitRadiusY,
-      polarity,
-      1,
-      orbitSweep
-    );
-    const orbitExitPrevious = getTaijiOrbitPoint(
-      orbitCenter.x,
-      orbitCenter.y,
-      orbitRadiusX,
-      orbitRadiusY,
-      polarity,
-      0.93,
-      orbitSweep
-    );
+    const entryLength = Math.max(1, Math.hypot(entryOffset.x, entryOffset.y));
+    const entryTangent = { x: -entryOffset.y / entryLength, y: entryOffset.x / entryLength };
+    const exitOffset = {
+      x: taiji.exit.x - taiji.center.x,
+      y: taiji.exit.y - taiji.center.y
+    };
+    const exitLength = Math.max(1, Math.hypot(exitOffset.x, exitOffset.y));
+    const exitTangent = { x: -exitOffset.y / exitLength, y: exitOffset.x / exitLength };
     const sourceSweep = (source.y / Math.max(1, height)) * 0.025 +
       (Math.abs(source.x - width / 2) / Math.max(1, width)) * 0.035;
-    const delay = clamp(sourceSweep + targetDelay[targetKind] + Math.random() * 0.014, 0, 0.16);
+    const delay = clamp(sourceSweep + targetDelay[targetKind] + Math.random() * 0.01, 0, 0.14);
 
     return {
       source,
       target,
       sourceControl: {
-        x: source.x + (orbitEntry.x - source.x) * 0.42 + polarity * (14 + depth * 18),
-        y: source.y + (orbitEntry.y - source.y) * 0.24 - strand * 16
+        x: source.x + (taiji.entry.x - source.x) * 0.4 - entryTangent.x * taiji.radius * (0.2 + depth * 0.08),
+        y: source.y + (taiji.entry.y - source.y) * 0.24 - entryTangent.y * taiji.radius * (0.2 + depth * 0.08)
       },
       entryControl: {
-        x: orbitEntry.x - (orbitEntryNext.x - orbitEntry.x) * 0.72,
-        y: orbitEntry.y - (orbitEntryNext.y - orbitEntry.y) * 0.72
+        x: taiji.entry.x - entryTangent.x * taiji.radius * (0.13 + depth * 0.05),
+        y: taiji.entry.y - entryTangent.y * taiji.radius * (0.13 + depth * 0.05)
       },
-      orbitEntry,
-      orbitExit,
-      orbitCenter,
-      orbitRadiusX,
-      orbitRadiusY,
-      orbitSweep,
-      orbitPhaseOffset: strand * 0.13 + (depth - 0.5) * 0.04,
+      taijiEntry: taiji.entry,
+      taijiExit: taiji.exit,
+      taijiCenter: taiji.center,
       polarity,
       exitControl: {
-        x: orbitExit.x + (orbitExit.x - orbitExitPrevious.x) * 0.78,
-        y: orbitExit.y + (orbitExit.y - orbitExitPrevious.y) * 0.78
+        x: taiji.exit.x + exitTangent.x * taiji.radius * (0.16 + depth * 0.06),
+        y: taiji.exit.y + exitTangent.y * taiji.radius * (0.16 + depth * 0.06)
       },
       targetControl: {
-        x: orbitExit.x + (target.x - orbitExit.x) * 0.64 + polarity * strand * 24,
-        y: orbitExit.y + (target.y - orbitExit.y) * 0.46 + (1 - depth) * 18
+        x: taiji.exit.x + (target.x - taiji.exit.x) * 0.62 + polarity * (10 + depth * 16),
+        y: taiji.exit.y + (target.y - taiji.exit.y) * 0.46 + (1 - depth) * 18
       },
       depth,
-      size: 0.7 + depth * 1.65 + (index % 17 === 0 ? 0.85 : 0),
-      alpha: 0.38 + depth * 0.42,
+      size: 0.72 + depth * 1.5 + (index % 19 === 0 ? 0.72 : 0),
+      alpha: 0.46 + depth * 0.4,
       delay,
       travelDuration: Math.max(0.56, targetFinish[targetKind] - delay + depth * 0.012),
-      trailStep: 0.012 + depth * 0.012
+      trailStep: 0.008 + depth * 0.008
     };
   });
 }
@@ -372,38 +367,31 @@ function cubicPoint(start: Point, controlA: Point, controlB: Point, end: Point, 
 }
 
 function pointOnTaijiPath(particle: MorphParticle, progress: number) {
-  if (progress <= 0.28) {
-    const local = easeInOutCubic(progress / 0.28);
+  if (progress <= 0.32) {
+    const local = easeInOutCubic(progress / 0.32);
     return cubicPoint(
       particle.source,
       particle.sourceControl,
       particle.entryControl,
-      particle.orbitEntry,
+      particle.taijiEntry,
       local
     );
   }
 
-  if (progress <= 0.68) {
-    const orbitProgress = smoothstep(0, 1, (progress - 0.28) / 0.4);
-    const local = clamp(
-      orbitProgress + particle.orbitPhaseOffset * Math.sin(Math.PI * orbitProgress),
-      0,
-      1
-    );
-    return getTaijiOrbitPoint(
-      particle.orbitCenter.x,
-      particle.orbitCenter.y,
-      particle.orbitRadiusX,
-      particle.orbitRadiusY,
-      particle.polarity,
-      local,
-      particle.orbitSweep
+  if (progress <= 0.7) {
+    const rotationProgress = smoothstep(0, 1, (progress - 0.32) / 0.38);
+    const breathingScale = 1 + Math.sin(Math.PI * rotationProgress) * (0.018 + particle.depth * 0.014);
+    return rotatePoint(
+      particle.taijiEntry,
+      particle.taijiCenter,
+      TAIJI_ROTATION * rotationProgress,
+      breathingScale
     );
   }
 
-  const local = easeInOutCubic((progress - 0.68) / 0.32);
+  const local = easeInOutCubic((progress - 0.7) / 0.3);
   return cubicPoint(
-    particle.orbitExit,
+    particle.taijiExit,
     particle.exitControl,
     particle.targetControl,
     particle.target,
@@ -460,45 +448,77 @@ function drawParticle(context: CanvasRenderingContext2D, particle: MorphParticle
 }
 
 function drawTaijiFlowField(context: CanvasRenderingContext2D, width: number, height: number, progress: number) {
-  const intensity = smoothstep(0.1, 0.28, progress) * (1 - smoothstep(0.66, 0.84, progress));
+  const intensity = smoothstep(0.16, 0.32, progress) * (1 - smoothstep(0.72, 0.88, progress));
   if (intensity <= 0) return;
 
-  const centerX = width * 0.5;
-  const baseRadius = Math.min(width, height) * (width < 720 ? 0.17 : 0.22);
-  const radiusX = baseRadius;
-  const radiusY = baseRadius * 0.7;
-  const sweep = Math.PI * 1.08;
+  const radius = Math.min(width, height) * (width < 720 ? 0.27 : 0.22);
+  const rotationProgress = smoothstep(0.3, 0.7, progress);
+  const rotation = TAIJI_ENTRY_ANGLE + TAIJI_ROTATION * rotationProgress;
   context.save();
+  context.translate(width * 0.5, height * 0.52);
+  context.rotate(rotation);
   context.lineCap = "round";
 
-  for (const polarity of [1, -1] as const) {
-    const color = polarity === 1 ? CYAN : VIOLET;
-    const centerY = height * 0.52 - polarity * baseRadius * 0.11;
-    context.beginPath();
-    for (let step = 0; step <= 48; step += 1) {
-      const point = getTaijiOrbitPoint(
-        centerX,
-        centerY,
-        radiusX,
-        radiusY,
-        polarity,
-        step / 48,
-        sweep
-      );
-      if (step === 0) context.moveTo(point.x, point.y);
-      else context.lineTo(point.x, point.y);
-    }
-    context.globalAlpha = intensity * 0.08;
-    context.strokeStyle = `rgb(${color.r} ${color.g} ${color.b})`;
-    context.lineWidth = 4.5;
-    context.setLineDash([]);
-    context.stroke();
+  context.setLineDash([]);
+  context.globalAlpha = intensity * 0.09;
+  context.lineWidth = 8;
+  context.strokeStyle = `rgb(${CYAN.r} ${CYAN.g} ${CYAN.b})`;
+  context.beginPath();
+  context.arc(0, 0, radius, -Math.PI / 2, Math.PI / 2);
+  context.stroke();
+  context.strokeStyle = `rgb(${VIOLET.r} ${VIOLET.g} ${VIOLET.b})`;
+  context.beginPath();
+  context.arc(0, 0, radius, Math.PI / 2, (Math.PI * 3) / 2);
+  context.stroke();
 
-    context.globalAlpha = intensity * (polarity === 1 ? 0.38 : 0.3);
-    context.lineWidth = polarity === 1 ? 1.35 : 1.1;
-    context.setLineDash([3, 15]);
-    context.lineDashOffset = -progress * 300 * polarity;
-    context.stroke();
+  context.globalAlpha = intensity * 0.44;
+  context.lineWidth = 1.25;
+  context.setLineDash([2.5, 12]);
+  context.lineDashOffset = -progress * 260;
+  context.strokeStyle = "rgba(224, 241, 255, 0.92)";
+  context.beginPath();
+  context.arc(0, 0, radius, 0, Math.PI * 2);
+  context.stroke();
+
+  context.globalAlpha = intensity * 0.08;
+  context.lineWidth = 4;
+  context.setLineDash([]);
+  context.strokeStyle = "rgba(210, 224, 244, 0.82)";
+  context.beginPath();
+  context.arc(0, -radius / 2, radius / 2, -Math.PI / 2, Math.PI / 2);
+  context.arc(0, radius / 2, radius / 2, -Math.PI / 2, (-Math.PI * 3) / 2, true);
+  context.stroke();
+
+  context.globalAlpha = intensity * 0.34;
+  context.lineWidth = 1.15;
+  context.setLineDash([2, 10]);
+  context.lineDashOffset = progress * 210;
+  context.strokeStyle = "rgba(224, 237, 250, 0.9)";
+  context.beginPath();
+  context.arc(0, -radius / 2, radius / 2, -Math.PI / 2, Math.PI / 2);
+  context.arc(0, radius / 2, radius / 2, -Math.PI / 2, (-Math.PI * 3) / 2, true);
+  context.stroke();
+
+  const eyeRadius = radius * 0.13;
+  for (const eye of [
+    { y: -radius / 2, color: CYAN },
+    { y: radius / 2, color: VIOLET }
+  ]) {
+    const glow = context.createRadialGradient(0, eye.y, 0, 0, eye.y, eyeRadius * 1.7);
+    glow.addColorStop(0, `rgba(${eye.color.r}, ${eye.color.g}, ${eye.color.b}, ${0.42 * intensity})`);
+    glow.addColorStop(0.45, `rgba(${eye.color.r}, ${eye.color.g}, ${eye.color.b}, ${0.14 * intensity})`);
+    glow.addColorStop(1, `rgba(${eye.color.r}, ${eye.color.g}, ${eye.color.b}, 0)`);
+    context.globalAlpha = 1;
+    context.fillStyle = glow;
+    context.beginPath();
+    context.arc(0, eye.y, eyeRadius * 1.7, 0, Math.PI * 2);
+    context.fill();
+
+    context.globalAlpha = intensity * 0.62;
+    context.fillStyle = `rgb(${eye.color.r} ${eye.color.g} ${eye.color.b})`;
+    context.beginPath();
+    context.arc(0, eye.y, Math.max(1.4, radius * 0.012), 0, Math.PI * 2);
+    context.fill();
   }
 
   context.restore();
@@ -565,9 +585,9 @@ function drawTargetHalo(context: CanvasRenderingContext2D, avatar: HTMLElement |
 }
 
 export function resolveParticlePhase(progress: number): ParticleMorphPhase {
-  if (progress < 0.24) return "disintegrate";
-  if (progress < 0.64) return "stream";
-  if (progress < 0.9) return "assemble";
+  if (progress < 0.3) return "disintegrate";
+  if (progress < 0.7) return "stream";
+  if (progress < 0.91) return "assemble";
   if (progress < 1) return "settle";
   return "done";
 }
