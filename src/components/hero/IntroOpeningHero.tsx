@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import anime from "animejs/lib/anime.es.js";
-import { startPptParticleFlow } from "@/components/hero/particleFlowTransition";
+import { startPptParticleMorph } from "@/components/hero/particleMorphTransition";
 import { introQuotes } from "@/data/introQuotes";
 import { withBase } from "@/lib/sitePath";
 
@@ -50,11 +49,15 @@ function pickIntroQuote() {
   return introQuotes[Math.floor(Math.random() * introQuotes.length)];
 }
 
+function smoothRange(start: number, end: number, value: number) {
+  const normalized = Math.min(1, Math.max(0, (value - start) / (end - start)));
+  return normalized * normalized * (3 - 2 * normalized);
+}
+
 export default function IntroOpeningHero() {
   const sectionRef = useRef<HTMLElement | null>(null);
-  const introLayerRef = useRef<HTMLDivElement | null>(null);
   const particleCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const particleControllerRef = useRef<ReturnType<typeof startPptParticleFlow> | null>(null);
+  const particleControllerRef = useRef<ReturnType<typeof startPptParticleMorph> | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
   const [selectedQuote, setSelectedQuote] = useState<string>(introQuotes[0]);
@@ -62,34 +65,92 @@ export default function IntroOpeningHero() {
   const [subtitleLoaded, setSubtitleLoaded] = useState(false);
   const [particleState, setParticleState] = useState<ParticleTransitionState>("idle");
   const [particleCount, setParticleCount] = useState(0);
+  const [sourcePointCount, setSourcePointCount] = useState(0);
+  const [targetPointCount, setTargetPointCount] = useState(0);
 
-  const stopParticleFlow = useCallback(() => {
+  const stopParticleMorph = useCallback(() => {
     particleControllerRef.current?.cancel();
     particleControllerRef.current = null;
   }, []);
 
-  const runParticleFlow = useCallback(() => {
+  const runParticleMorph = useCallback((mainView: HTMLElement, profileCardInner: HTMLElement | null) => {
     const canvas = particleCanvasRef.current;
-    const slide = introLayerRef.current;
     const section = sectionRef.current;
-    if (!canvas || !slide || !section) return false;
+    if (!canvas || !section) return false;
 
-    stopParticleFlow();
+    const sourceContent = section.querySelector(".wrap") as HTMLElement | null;
+    const sourceTextElements = Array.from(section.querySelectorAll(".content-title, .content-subtitle")) as HTMLElement[];
+    const targetTextElements = Array.from(
+      document.querySelectorAll("#main-view .profile-card h1, #main-view .profile-card p, #main-view .profile-card a span")
+    ) as HTMLElement[];
+    const targetAvatar = document.querySelector("#main-view .profile-avatar") as HTMLElement | null;
+    const targetGrid = document.querySelector("#main-view [data-interactive-go-background]") as HTMLElement | null;
+    const gridCellSize = Number(targetGrid?.getAttribute("data-cell-size")) || 46;
+
+    stopParticleMorph();
+    if (sourceContent) sourceContent.style.transition = "none";
+    if (profileCardInner) {
+      profileCardInner.style.animation = "none";
+      profileCardInner.style.transition = "none";
+    }
     setParticleState("running");
-    const controller = startPptParticleFlow({
+    const controller = startPptParticleMorph({
       canvas,
-      slide,
+      sourceTextElements,
+      targetTextElements,
+      targetAvatar,
+      targetGrid,
+      gridCellSize,
+      onProgress: (progress) => {
+        const incoming = smoothRange(0.04, 0.88, progress);
+        const cardProgress = smoothRange(0.36, 0.94, progress);
+
+        if (sourceContent) {
+          sourceContent.style.opacity = (1 - smoothRange(0.08, 0.64, progress)).toFixed(4);
+          sourceContent.style.transform = `translate3d(0, ${(-progress * 12).toFixed(2)}px, 0) scale(${(
+            1 +
+            progress * 0.025
+          ).toFixed(4)})`;
+          sourceContent.style.filter = `blur(${(progress * 3.5).toFixed(2)}px)`;
+        }
+        mainView.style.opacity = (0.05 + incoming * 0.95).toFixed(4);
+        mainView.style.transform = `translate3d(0, ${((1 - incoming) * 4).toFixed(3)}vh, 0) scale(${(
+          0.965 +
+          incoming * 0.035
+        ).toFixed(4)})`;
+        mainView.style.filter = `blur(${((1 - incoming) * 8).toFixed(2)}px)`;
+
+        if (profileCardInner) {
+          profileCardInner.style.opacity = cardProgress.toFixed(4);
+          profileCardInner.style.transform = `translate3d(0, ${((1 - cardProgress) * 22).toFixed(2)}px, 0) scale(${(
+            0.975 +
+            cardProgress * 0.025
+          ).toFixed(4)})`;
+        }
+      },
       onComplete: () => {
         setParticleCount(0);
         setParticleState("done");
+        mainView.style.opacity = "";
+        mainView.style.transform = "";
+        mainView.style.filter = "";
+        mainView.style.zIndex = "";
+        if (profileCardInner) {
+          profileCardInner.classList.add("in");
+          profileCardInner.style.opacity = "";
+          profileCardInner.style.transform = "";
+        }
         window.__stopWebglFluidBackground?.();
         section.style.visibility = "hidden";
+        window.dispatchEvent(new Event("resize"));
       }
     });
     particleControllerRef.current = controller;
     setParticleCount(controller.particleCount);
+    setSourcePointCount(controller.sourcePointCount);
+    setTargetPointCount(controller.targetPointCount);
     return controller.particleCount > 0;
-  }, [stopParticleFlow]);
+  }, [stopParticleMorph]);
 
   const enterMainView = useCallback(() => {
     if (leavingRef.current) return;
@@ -97,56 +158,67 @@ export default function IntroOpeningHero() {
     window.switchPage = { ...(window.switchPage ?? {}), switched: true };
     const section = sectionRef.current;
     const mainView = document.querySelector("#main-view") as HTMLElement | null;
-    const introLayer = introLayerRef.current;
+    const profileCardInner = document.querySelector(".profile-card-inner") as HTMLElement | null;
     if (mainView) {
-      mainView.style.transform = "translate3d(0, 14vh, 0) scale(0.985)";
-      mainView.style.opacity = "0.24";
+      mainView.style.transform = "none";
+      mainView.style.opacity = "0";
+      mainView.style.filter = "none";
+      mainView.style.zIndex = "120";
     }
     document.documentElement.dataset.mainView = "active";
-    document.querySelector(".profile-card-inner")?.classList.add("in");
     section?.classList.add("is-leaving");
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!reduceMotion && section && mainView && runParticleFlow()) {
-      anime({
-        targets: mainView,
-        duration: 1320,
-        easing: "easeOutQuart",
-        translateY: ["14vh", "0vh"],
-        scale: [0.985, 1],
-        opacity: [0.24, 1],
-        complete: () => {
-          mainView.style.transform = "";
-          mainView.style.opacity = "";
-          window.dispatchEvent(new Event("resize"));
-        }
-      });
+    if (!reduceMotion && section && mainView && runParticleMorph(mainView, profileCardInner)) {
       return;
     }
 
-    if (introLayer) {
-      introLayer.style.clipPath = "inset(0 0 100% 0)";
-      introLayer.style.transform = "none";
-    }
     if (mainView) {
       mainView.style.transform = "";
       mainView.style.opacity = "";
+      mainView.style.filter = "";
+      mainView.style.zIndex = "";
+    }
+    if (profileCardInner) {
+      profileCardInner.classList.add("in");
+      profileCardInner.style.opacity = "";
+      profileCardInner.style.transform = "";
+      profileCardInner.style.animation = "";
+      profileCardInner.style.transition = "";
     }
     if (section) section.style.visibility = "hidden";
     setParticleCount(0);
     setParticleState("done");
+    setSourcePointCount(0);
+    setTargetPointCount(0);
     window.__stopWebglFluidBackground?.();
     window.dispatchEvent(new Event("resize"));
-  }, [runParticleFlow]);
+  }, [runParticleMorph]);
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     leavingRef.current = false;
     document.documentElement.removeAttribute("data-main-view");
-    document.querySelector(".profile-card-inner")?.classList.remove("in");
-    stopParticleFlow();
+    const profileCardInner = document.querySelector(".profile-card-inner") as HTMLElement | null;
+    profileCardInner?.classList.remove("in");
+    if (profileCardInner) {
+      profileCardInner.style.opacity = "";
+      profileCardInner.style.transform = "";
+      profileCardInner.style.animation = "";
+      profileCardInner.style.transition = "";
+    }
+    const mainView = document.querySelector("#main-view") as HTMLElement | null;
+    if (mainView) {
+      mainView.style.opacity = "";
+      mainView.style.transform = "";
+      mainView.style.filter = "";
+      mainView.style.zIndex = "";
+    }
+    stopParticleMorph();
     setParticleState("idle");
     setParticleCount(0);
+    setSourcePointCount(0);
+    setTargetPointCount(0);
     setSelectedQuote(pickIntroQuote());
     window.config = { ...fluidConfig, PAUSED: reduceMotion };
     window.switchPage = { switched: false };
@@ -164,13 +236,15 @@ export default function IntroOpeningHero() {
 
     const section = sectionRef.current;
     if (!section) return undefined;
-    const introLayer = introLayerRef.current;
     section.style.opacity = "";
     section.style.transform = "";
     section.style.visibility = "";
-    if (introLayer) {
-      introLayer.style.clipPath = "";
-      introLayer.style.transform = "";
+    const sourceContent = section.querySelector(".wrap") as HTMLElement | null;
+    if (sourceContent) {
+      sourceContent.style.opacity = "";
+      sourceContent.style.transform = "";
+      sourceContent.style.filter = "";
+      sourceContent.style.transition = "";
     }
 
     const handleWheel = (event: WheelEvent) => {
@@ -211,52 +285,56 @@ export default function IntroOpeningHero() {
       section.removeEventListener("touchstart", handleTouchStart);
       section.removeEventListener("touchend", handleTouchEnd);
       window.switchPage = { switched: true };
-      anime.remove("#main-view");
-      stopParticleFlow();
+      stopParticleMorph();
       window.__stopWebglFluidBackground?.();
     };
-  }, [enterMainView, stopParticleFlow]);
+  }, [enterMainView, stopParticleMorph]);
 
   return (
-    <section
-      ref={sectionRef}
-      className="content content-intro"
-      aria-label="进入动画"
-      data-motion-scene="intro-opening"
-      data-transition-visual="ppt-particle-flow"
-    >
-      <div ref={introLayerRef} className="content-inner">
-        <canvas
-          id="background"
-          aria-label="进入动画背景"
-          data-visual="webgl-fluid-opening"
-          data-webgl-fluid-background
-        />
+    <>
+      <section
+        ref={sectionRef}
+        className="content content-intro"
+        aria-label="进入动画"
+        data-motion-scene="intro-opening"
+        data-transition-visual="ppt-particle-morph"
+      >
+        <div className="content-inner">
+          <canvas
+            id="background"
+            aria-label="进入动画背景"
+            data-visual="webgl-fluid-opening"
+            data-webgl-fluid-background
+          />
 
-        <div className={`wrap fade${introLoaded ? " in" : ""}`}>
-          <h2 className="content-title">{introTitle}</h2>
-          <h3 className="content-subtitle" data-intro-subtitle data-original-content={selectedQuote}>
-            {subtitleLoaded
-              ? Array.from(selectedQuote).map((letter, index) => (
-                  <span key={`${letter}-${index}`} style={{ animationDelay: `${index * 55}ms` }}>
-                    {letter === " " ? "\u00a0" : letter}
-                  </span>
-                ))
-              : "\u00a0"}
-          </h3>
-          <div className="arrow arrow-1" aria-hidden="true" onMouseEnter={enterMainView} />
-          <div className="arrow arrow-2" aria-hidden="true" onMouseEnter={enterMainView} />
+          <div className={`wrap fade${introLoaded ? " in" : ""}`}>
+            <h2 className="content-title">{introTitle}</h2>
+            <h3 className="content-subtitle" data-intro-subtitle data-original-content={selectedQuote}>
+              {subtitleLoaded
+                ? Array.from(selectedQuote).map((letter, index) => (
+                    <span key={`${letter}-${index}`} style={{ animationDelay: `${index * 55}ms` }}>
+                      {letter === " " ? "\u00a0" : letter}
+                    </span>
+                  ))
+                : "\u00a0"}
+            </h3>
+            <div className="arrow arrow-1" aria-hidden="true" onMouseEnter={enterMainView} />
+            <div className="arrow arrow-2" aria-hidden="true" onMouseEnter={enterMainView} />
+          </div>
         </div>
-      </div>
+      </section>
       <canvas
         ref={particleCanvasRef}
-        className="intro-particle-flow"
+        className="intro-particle-morph"
         aria-hidden="true"
         data-intro-particle-transition
         data-particle-transition-state={particleState}
         data-particle-count={particleCount}
-        data-particle-flow-direction="bottom-to-top"
+        data-particle-source-count={sourcePointCount}
+        data-particle-target-count={targetPointCount}
+        data-particle-flow-direction="source-to-target"
+        data-particle-mapping="intro-to-main-anchors"
       />
-    </section>
+    </>
   );
 }

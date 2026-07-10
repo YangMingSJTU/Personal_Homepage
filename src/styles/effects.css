@@ -12,7 +12,6 @@
   background: transparent;
   overflow: hidden;
   user-select: none;
-  will-change: clip-path, transform;
 }
 
 #background {
@@ -122,10 +121,10 @@
   transform-origin: left center;
 }
 
-.intro-particle-flow {
-  position: absolute;
+.intro-particle-morph {
+  position: fixed;
   inset: 0;
-  z-index: 8;
+  z-index: 150;
   display: block;
   width: 100%;
   height: 100%;
@@ -135,17 +134,11 @@
   transition: opacity 120ms ease;
 }
 
-.content-intro.is-leaving .wrap {
-  opacity: 0;
-  transform: translateY(-42px);
-  transition: opacity 320ms ease, transform 520ms ease;
-}
-
 .content-intro.is-leaving {
   pointer-events: none;
 }
 
-.content-intro.is-leaving .intro-particle-flow {
+.intro-particle-morph[data-particle-transition-state="running"] {
   opacity: 1;
 }
 
@@ -274,7 +267,7 @@
   background: var(--go-bg);
   opacity: 0;
   pointer-events: none;
-  transform: translate3d(0, 14vh, 0) scale(0.985);
+  transform: translate3d(0, 4vh, 0) scale(0.965);
   transform-origin: 50% 50%;
   visibility: hidden;
   transition: opacity 420ms ease, visibility 0s linear 420ms;
@@ -434,14 +427,14 @@ html[data-main-view="active"] .home-main {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .intro-particle-flow,
-  .content-intro.is-leaving .intro-particle-flow {
+  .intro-particle-morph,
+  .intro-particle-morph[data-particle-transition-state="running"] {
     display: none;
     opacity: 0;
   }
 
   .content-inner {
-    will-change: auto;
+    transform: none;
   }
 
   .home-main {
