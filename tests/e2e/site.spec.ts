@@ -83,7 +83,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.getByRole("link", { name: "Products", exact: true })).toHaveCount(0);
   await expect(page.locator("html")).not.toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveAttribute("data-motion-scene", "intro-opening");
-  await expect(hero).toHaveAttribute("data-transition-visual", "slide-deck-morph");
+  await expect(hero).toHaveAttribute("data-transition-visual", "ppt-particle-flow");
   await expect(hero.locator(".content-inner > canvas#background[aria-label='进入动画背景']")).toHaveAttribute(
     "data-visual",
     "webgl-fluid-opening"
@@ -105,9 +105,12 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(hero.locator("#background")).toHaveCSS("z-index", "-1");
   await expect(hero.locator(".arrow.arrow-1")).toBeVisible();
   await expect(hero.locator(".arrow.arrow-2")).toBeVisible();
-  const slideEdge = hero.locator("[data-slide-transition-edge]");
-  await expect(slideEdge).toBeAttached();
-  await expect(hero.locator("[data-intro-particle-transition]")).toHaveCount(0);
+  const particleFlow = hero.locator("[data-intro-particle-transition]");
+  await expect(particleFlow).toBeAttached();
+  await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "idle");
+  await expect(particleFlow).toHaveAttribute("data-particle-count", "0");
+  await expect(particleFlow).toHaveAttribute("data-particle-flow-direction", "bottom-to-top");
+  await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-streak-primary]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-streak-secondary]")).toHaveCount(0);
@@ -139,11 +142,14 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
-  await expect(slideEdge).toBeAttached();
+  await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "running");
+  await expect(particleFlow).toHaveAttribute("data-particle-count", /^[1-9]\d*$/);
   await expect(mainView).toHaveCSS("visibility", "visible");
-  await expect(mainView).toHaveCSS("opacity", "1");
   await expect(goBackground).toBeVisible();
   await waitForMainViewSettled(mainView);
+  await expect(mainView).toHaveCSS("opacity", "1");
+  await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "done");
+  await expect(particleFlow).toHaveAttribute("data-particle-count", "0");
   await expect.poll(() => profileCardInner.evaluate((element) => element.classList.contains("in"))).toBe(true);
   await expect(profileCard).toBeInViewport();
   await expect(profileCard.getByRole("heading", { name: "Personal Homepage" })).toBeVisible();
@@ -193,8 +199,12 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
-  await expect(hero.locator("[data-slide-transition-edge]")).toBeAttached();
-  await expect(hero.locator("[data-intro-particle-transition]")).toHaveCount(0);
+  await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
+  await expect(hero.locator("[data-intro-particle-transition]")).toHaveAttribute(
+    "data-particle-transition-state",
+    "done"
+  );
+  await expect(hero.locator("[data-intro-particle-transition]")).toHaveAttribute("data-particle-count", "0");
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(background).toBeVisible();
   await expect(page.locator("#main-view")).toBeInViewport();
@@ -251,12 +261,23 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
 
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
-  await expect(hero.locator("[data-slide-transition-edge]")).toBeAttached();
-  await expect(hero.locator("[data-intro-particle-transition]")).toHaveCount(0);
+  await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
+  await expect(hero.locator("[data-intro-particle-transition]")).toHaveAttribute(
+    "data-particle-transition-state",
+    "running"
+  );
+  await expect(hero.locator("[data-intro-particle-transition]")).toHaveAttribute(
+    "data-particle-flow-direction",
+    "bottom-to-top"
+  );
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();
   await waitForMainViewSettled(page.locator("#main-view"));
+  await expect(hero.locator("[data-intro-particle-transition]")).toHaveAttribute(
+    "data-particle-transition-state",
+    "done"
+  );
   const canvas = background.locator("canvas[aria-label='交互围棋背景']");
   await expect(canvas).toHaveAttribute("data-visual", "infinite-go-grid");
   await expect(page.locator("#main-view .scifi-go-board-plane")).toHaveCount(0);

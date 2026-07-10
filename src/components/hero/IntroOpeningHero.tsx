@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import anime from "animejs/lib/anime.es.js";
+import { startPptParticleFlow } from "@/components/hero/particleFlowTransition";
 import { introQuotes } from "@/data/introQuotes";
 import { withBase } from "@/lib/sitePath";
 
@@ -43,70 +44,109 @@ const fluidConfig = {
 const introTitle = "YangMing";
 const fluidScriptSrc = withBase("/vendor/webgl-fluid-background.js");
 
+type ParticleTransitionState = "idle" | "running" | "done";
+
 function pickIntroQuote() {
   return introQuotes[Math.floor(Math.random() * introQuotes.length)];
 }
 
 export default function IntroOpeningHero() {
   const sectionRef = useRef<HTMLElement | null>(null);
+  const introLayerRef = useRef<HTMLDivElement | null>(null);
+  const particleCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const particleControllerRef = useRef<ReturnType<typeof startPptParticleFlow> | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
   const [selectedQuote, setSelectedQuote] = useState<string>(introQuotes[0]);
   const [introLoaded, setIntroLoaded] = useState(false);
   const [subtitleLoaded, setSubtitleLoaded] = useState(false);
+  const [particleState, setParticleState] = useState<ParticleTransitionState>("idle");
+  const [particleCount, setParticleCount] = useState(0);
+
+  const stopParticleFlow = useCallback(() => {
+    particleControllerRef.current?.cancel();
+    particleControllerRef.current = null;
+  }, []);
+
+  const runParticleFlow = useCallback(() => {
+    const canvas = particleCanvasRef.current;
+    const slide = introLayerRef.current;
+    const section = sectionRef.current;
+    if (!canvas || !slide || !section) return false;
+
+    stopParticleFlow();
+    setParticleState("running");
+    const controller = startPptParticleFlow({
+      canvas,
+      slide,
+      onComplete: () => {
+        setParticleCount(0);
+        setParticleState("done");
+        window.__stopWebglFluidBackground?.();
+        section.style.visibility = "hidden";
+      }
+    });
+    particleControllerRef.current = controller;
+    setParticleCount(controller.particleCount);
+    return controller.particleCount > 0;
+  }, [stopParticleFlow]);
 
   const enterMainView = useCallback(() => {
     if (leavingRef.current) return;
     leavingRef.current = true;
     window.switchPage = { ...(window.switchPage ?? {}), switched: true };
-    document.documentElement.dataset.mainView = "active";
-    document.querySelector(".profile-card-inner")?.classList.add("in");
     const section = sectionRef.current;
     const mainView = document.querySelector("#main-view") as HTMLElement | null;
+    const introLayer = introLayerRef.current;
+    if (mainView) {
+      mainView.style.transform = "translate3d(0, 14vh, 0) scale(0.985)";
+      mainView.style.opacity = "0.24";
+    }
+    document.documentElement.dataset.mainView = "active";
+    document.querySelector(".profile-card-inner")?.classList.add("in");
     section?.classList.add("is-leaving");
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!reduceMotion && section) {
+    if (!reduceMotion && section && mainView && runParticleFlow()) {
       anime({
-        targets: section,
-        duration: 1120,
-        easing: "easeInOutCubic",
-        scale: [1, 0.92],
-        translateY: ["0vh", "-18vh"],
-        opacity: [1, 0.14],
-        complete: () => {
-          window.__stopWebglFluidBackground?.();
-          section.style.visibility = "hidden";
-        }
-      });
-
-      anime({
-        targets: "#main-view",
-        duration: 1120,
+        targets: mainView,
+        duration: 1320,
         easing: "easeOutQuart",
-        translateY: ["100vh", "0vh"],
-        scale: [1.035, 1],
-        opacity: [0, 1],
+        translateY: ["14vh", "0vh"],
+        scale: [0.985, 1],
+        opacity: [0.24, 1],
         complete: () => {
-          if (mainView) {
-            mainView.style.transform = "";
-            mainView.style.opacity = "";
-          }
+          mainView.style.transform = "";
+          mainView.style.opacity = "";
           window.dispatchEvent(new Event("resize"));
         }
       });
       return;
     }
 
-    if (section) section.style.transform = "translateY(-200vh)";
+    if (introLayer) {
+      introLayer.style.clipPath = "inset(0 0 100% 0)";
+      introLayer.style.transform = "none";
+    }
+    if (mainView) {
+      mainView.style.transform = "";
+      mainView.style.opacity = "";
+    }
+    if (section) section.style.visibility = "hidden";
+    setParticleCount(0);
+    setParticleState("done");
     window.__stopWebglFluidBackground?.();
-  }, []);
+    window.dispatchEvent(new Event("resize"));
+  }, [runParticleFlow]);
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     leavingRef.current = false;
     document.documentElement.removeAttribute("data-main-view");
     document.querySelector(".profile-card-inner")?.classList.remove("in");
+    stopParticleFlow();
+    setParticleState("idle");
+    setParticleCount(0);
     setSelectedQuote(pickIntroQuote());
     window.config = { ...fluidConfig, PAUSED: reduceMotion };
     window.switchPage = { switched: false };
@@ -124,9 +164,14 @@ export default function IntroOpeningHero() {
 
     const section = sectionRef.current;
     if (!section) return undefined;
+    const introLayer = introLayerRef.current;
     section.style.opacity = "";
     section.style.transform = "";
     section.style.visibility = "";
+    if (introLayer) {
+      introLayer.style.clipPath = "";
+      introLayer.style.transform = "";
+    }
 
     const handleWheel = (event: WheelEvent) => {
       if (event.deltaY <= 20) return;
@@ -166,9 +211,11 @@ export default function IntroOpeningHero() {
       section.removeEventListener("touchstart", handleTouchStart);
       section.removeEventListener("touchend", handleTouchEnd);
       window.switchPage = { switched: true };
+      anime.remove("#main-view");
+      stopParticleFlow();
       window.__stopWebglFluidBackground?.();
     };
-  }, [enterMainView]);
+  }, [enterMainView, stopParticleFlow]);
 
   return (
     <section
@@ -176,16 +223,15 @@ export default function IntroOpeningHero() {
       className="content content-intro"
       aria-label="进入动画"
       data-motion-scene="intro-opening"
-      data-transition-visual="slide-deck-morph"
+      data-transition-visual="ppt-particle-flow"
     >
-      <div className="content-inner">
+      <div ref={introLayerRef} className="content-inner">
         <canvas
           id="background"
           aria-label="进入动画背景"
           data-visual="webgl-fluid-opening"
           data-webgl-fluid-background
         />
-        <div className="slide-transition-edge" aria-hidden="true" data-slide-transition-edge />
 
         <div className={`wrap fade${introLoaded ? " in" : ""}`}>
           <h2 className="content-title">{introTitle}</h2>
@@ -202,6 +248,15 @@ export default function IntroOpeningHero() {
           <div className="arrow arrow-2" aria-hidden="true" onMouseEnter={enterMainView} />
         </div>
       </div>
+      <canvas
+        ref={particleCanvasRef}
+        className="intro-particle-flow"
+        aria-hidden="true"
+        data-intro-particle-transition
+        data-particle-transition-state={particleState}
+        data-particle-count={particleCount}
+        data-particle-flow-direction="bottom-to-top"
+      />
     </section>
   );
 }
