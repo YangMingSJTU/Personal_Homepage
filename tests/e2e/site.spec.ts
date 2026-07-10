@@ -97,7 +97,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(introSubtitle).toBeVisible();
   await expect(introSubtitle).toHaveAttribute("data-quote-rotation", "left-to-right-sequenced");
   await expect(introSubtitle).toHaveAttribute("data-quote-visible", "true");
-  await expect(introSubtitle).toHaveAttribute("data-quote-hold-ms", "6000");
+  await expect(introSubtitle).toHaveAttribute("data-quote-hold-ms", "8000");
   await expect(introSubtitle).toHaveAttribute("data-quote-interlude-ms", "220");
   await expect(introSubtitle).toHaveAttribute("data-quote-transition-ms", "2860");
   await expect(introSubtitle).toHaveAttribute("data-quote-phase", "steady");
