@@ -20,6 +20,35 @@ async function waitForMainViewSettled(mainView: Locator) {
     .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
 }
 
+type ParticlePhaseWindow = Window & {
+  __particlePhaseHistory?: string[];
+  __particlePhaseObserver?: MutationObserver;
+};
+
+async function observeParticlePhases(particleTransition: Locator) {
+  await particleTransition.evaluate((element) => {
+    const state = window as ParticlePhaseWindow;
+    state.__particlePhaseObserver?.disconnect();
+    state.__particlePhaseHistory = [element.getAttribute("data-particle-transition-phase") ?? "missing"];
+    state.__particlePhaseObserver = new MutationObserver(() => {
+      const phase = element.getAttribute("data-particle-transition-phase") ?? "missing";
+      if (state.__particlePhaseHistory?.at(-1) !== phase) state.__particlePhaseHistory?.push(phase);
+    });
+    state.__particlePhaseObserver.observe(element, {
+      attributes: true,
+      attributeFilter: ["data-particle-transition-phase"]
+    });
+  });
+}
+
+async function readParticlePhases(page: Page) {
+  return page.evaluate(() => {
+    const state = window as ParticlePhaseWindow;
+    state.__particlePhaseObserver?.disconnect();
+    return state.__particlePhaseHistory ?? [];
+  });
+}
+
 type TestPoint = { x: number; y: number };
 type PlacementInput = "left" | "right" | "touch";
 
@@ -178,6 +207,12 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   const particleFlow = page.locator("[data-intro-particle-transition]");
   await expect(particleFlow).toBeAttached();
   await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "idle");
+  await expect(particleFlow).toHaveAttribute("data-particle-transition-phase", "idle");
+  await expect(particleFlow).toHaveAttribute("data-particle-transition-model", "three-act-magnetic-field");
+  await expect(particleFlow).toHaveAttribute("data-particle-transition-duration-ms", "1950");
+  await expect(particleFlow).toHaveAttribute("data-particle-max-frame-step-ms", "64");
+  await expect(particleFlow).toHaveAttribute("data-particle-target-order", "grid-avatar-text");
+  await expect(particleFlow).toHaveAttribute("data-particle-path", "braided-field");
   await expect(particleFlow).toHaveAttribute("data-particle-count", "0");
   await expect(particleFlow).toHaveAttribute("data-particle-source-count", "0");
   await expect(particleFlow).toHaveAttribute("data-particle-target-count", "0");
@@ -216,6 +251,10 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
   await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "running");
+  await expect(particleFlow).toHaveAttribute(
+    "data-particle-transition-phase",
+    /^(disintegrate|stream|assemble|settle)$/
+  );
   await expect(particleFlow).toHaveAttribute("data-particle-count", /^[1-9]\d*$/);
   await expect(particleFlow).toHaveAttribute("data-particle-source-count", /^[1-9]\d*$/);
   await expect(particleFlow).toHaveAttribute("data-particle-target-count", /^[1-9]\d*$/);
@@ -225,6 +264,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(mainView).toHaveCSS("opacity", "1");
   await expect(mainView).toHaveCSS("z-index", "1");
   await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "done");
+  await expect(particleFlow).toHaveAttribute("data-particle-transition-phase", "done");
   await expect(particleFlow).toHaveAttribute("data-particle-count", "0");
   await expect.poll(() => profileCardInner.evaluate((element) => element.classList.contains("in"))).toBe(true);
   await expect(profileCard).toBeInViewport();
@@ -284,6 +324,7 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await expect(particleTransition).toHaveAttribute("data-particle-count", "0");
   await expect(particleTransition).toHaveAttribute("data-particle-source-count", "0");
   await expect(particleTransition).toHaveAttribute("data-particle-target-count", "0");
+  await expect(particleTransition).toHaveAttribute("data-particle-transition-phase", "done");
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(background).toBeVisible();
   await expect(page.locator("#main-view")).toBeInViewport();
@@ -312,6 +353,7 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   const particleTransition = page.locator("[data-intro-particle-transition]");
 
   await expect(hero.locator(".wrap.fade")).toHaveClass(/in/);
+  await observeParticlePhases(particleTransition);
   if (test.info().project.name === "mobile") {
     await hero.evaluate((element) => {
       const startTouch = new Touch({ identifier: 1, target: element, clientX: 200, clientY: 620 });
@@ -354,6 +396,8 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
     "data-particle-mapping",
     "intro-to-main-anchors"
   );
+  await expect(particleTransition).toHaveAttribute("data-particle-transition-model", "three-act-magnetic-field");
+  await expect(particleTransition).toHaveAttribute("data-particle-target-order", "grid-avatar-text");
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();
@@ -362,6 +406,12 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
     "data-particle-transition-state",
     "done"
   );
+  const phaseHistory = await readParticlePhases(page);
+  const phaseIndexes = ["disintegrate", "stream", "assemble", "settle", "done"].map((phase) =>
+    phaseHistory.indexOf(phase)
+  );
+  expect(phaseIndexes.every((index) => index >= 0)).toBe(true);
+  expect(phaseIndexes).toEqual([...phaseIndexes].sort((left, right) => left - right));
   const canvas = background.locator("canvas[aria-label='交互围棋背景']");
   await expect(canvas).toHaveAttribute("data-visual", "infinite-go-grid");
   await expect(page.locator("#main-view .scifi-go-board-plane")).toHaveCount(0);

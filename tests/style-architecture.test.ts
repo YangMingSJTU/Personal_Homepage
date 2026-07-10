@@ -42,6 +42,10 @@ describe("style architecture", () => {
     expect(introHero).toContain("data-intro-particle-transition");
     expect(introHero).toContain('data-particle-flow-direction="source-to-target"');
     expect(introHero).toContain('data-particle-mapping="intro-to-main-anchors"');
+    expect(introHero).toContain('data-particle-transition-model="three-act-magnetic-field"');
+    expect(introHero).toContain('data-particle-target-order="grid-avatar-text"');
+    expect(introHero).toContain('data-particle-path="braided-field"');
+    expect(introHero).toContain('data-particle-max-frame-step-ms="64"');
     expect(introHero).toContain("startPptParticleMorph");
     expect(introHero).toContain('data-quote-rotation="left-to-right-sequenced"');
     expect(introHero).toContain("data-quote-interlude-ms={quoteInterludeMs}");
@@ -60,7 +64,13 @@ describe("style architecture", () => {
     expect(particleMorph).toContain("buildAmbientSources");
     expect(particleMorph).toContain("buildAvatarTargets");
     expect(particleMorph).toContain("buildGridTargets");
-    expect(particleMorph).toContain("particleCount = width < 720 ? 320 : 560");
+    expect(particleMorph).toContain("resolveParticlePhase");
+    expect(particleMorph).toContain("pointOnMagneticPath");
+    expect(particleMorph).toContain("drawStreamField");
+    expect(particleMorph).toContain("drawGridIgnition");
+    expect(particleMorph).toContain("duration = 1950");
+    expect(particleMorph).toContain("const maxFrameStep = 64");
+    expect(particleMorph).toContain("particleCount = width < 720 ? 460 : highResolutionViewport ? 760 : 900");
     expect(introHero).not.toContain("data-shape-streak-primary");
     expect(introHero).not.toContain("data-shape-streak-secondary");
   });

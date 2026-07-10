@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { startPptParticleMorph } from "@/components/hero/particleMorphTransition";
+import {
+  startPptParticleMorph,
+  type ParticleMorphPhase
+} from "@/components/hero/particleMorphTransition";
 import { introQuotes } from "@/data/introQuotes";
 import { withBase } from "@/lib/sitePath";
 
@@ -52,6 +55,7 @@ const quoteTransitionMs = quoteSweepWindowMs * 2 + quoteCharacterInMs + quoteCha
 const quoteInitialRevealMs = quoteSweepWindowMs + quoteCharacterInMs;
 
 type ParticleTransitionState = "idle" | "running" | "done";
+type ParticleTransitionVisualPhase = "idle" | ParticleMorphPhase;
 type QuotePhase = "waiting" | "entering" | "steady" | "transitioning";
 
 interface QuoteState {
@@ -119,6 +123,7 @@ export default function IntroOpeningHero() {
   });
   const [introLoaded, setIntroLoaded] = useState(false);
   const [particleState, setParticleState] = useState<ParticleTransitionState>("idle");
+  const [particlePhase, setParticlePhase] = useState<ParticleTransitionVisualPhase>("idle");
   const [particleCount, setParticleCount] = useState(0);
   const [sourcePointCount, setSourcePointCount] = useState(0);
   const [targetPointCount, setTargetPointCount] = useState(0);
@@ -149,6 +154,7 @@ export default function IntroOpeningHero() {
       profileCardInner.style.transition = "none";
     }
     setParticleState("running");
+    setParticlePhase("disintegrate");
     const controller = startPptParticleMorph({
       canvas,
       sourceTextElements,
@@ -156,36 +162,39 @@ export default function IntroOpeningHero() {
       targetAvatar,
       targetGrid,
       gridCellSize,
+      onPhaseChange: setParticlePhase,
       onProgress: (progress) => {
-        const incoming = smoothRange(0.04, 0.88, progress);
-        const cardProgress = smoothRange(0.36, 0.94, progress);
+        const sourceDeparture = smoothRange(0.03, 0.34, progress);
+        const gridProgress = smoothRange(0.42, 0.8, progress);
+        const cardProgress = smoothRange(0.66, 0.96, progress);
 
         if (sourceContent) {
-          sourceContent.style.opacity = (1 - smoothRange(0.08, 0.64, progress)).toFixed(4);
-          sourceContent.style.transform = `translate3d(0, ${(-progress * 12).toFixed(2)}px, 0) scale(${(
+          sourceContent.style.opacity = (1 - sourceDeparture).toFixed(4);
+          sourceContent.style.transform = `translate3d(0, ${(-sourceDeparture * 16).toFixed(2)}px, 0) scale(${(
             1 +
-            progress * 0.025
+            sourceDeparture * 0.035
           ).toFixed(4)})`;
-          sourceContent.style.filter = `blur(${(progress * 3.5).toFixed(2)}px)`;
+          sourceContent.style.filter = `blur(${(sourceDeparture * 5).toFixed(2)}px)`;
         }
-        mainView.style.opacity = (0.05 + incoming * 0.95).toFixed(4);
-        mainView.style.transform = `translate3d(0, ${((1 - incoming) * 4).toFixed(3)}vh, 0) scale(${(
-          0.965 +
-          incoming * 0.035
+        mainView.style.opacity = gridProgress.toFixed(4);
+        mainView.style.transform = `translate3d(0, ${((1 - gridProgress) * 2.5).toFixed(3)}vh, 0) scale(${(
+          0.985 +
+          gridProgress * 0.015
         ).toFixed(4)})`;
-        mainView.style.filter = `blur(${((1 - incoming) * 8).toFixed(2)}px)`;
+        mainView.style.filter = `blur(${((1 - gridProgress) * 10).toFixed(2)}px)`;
 
         if (profileCardInner) {
           profileCardInner.style.opacity = cardProgress.toFixed(4);
-          profileCardInner.style.transform = `translate3d(0, ${((1 - cardProgress) * 22).toFixed(2)}px, 0) scale(${(
-            0.975 +
-            cardProgress * 0.025
+          profileCardInner.style.transform = `translate3d(0, ${((1 - cardProgress) * 18).toFixed(2)}px, 0) scale(${(
+            0.98 +
+            cardProgress * 0.02
           ).toFixed(4)})`;
         }
       },
       onComplete: () => {
         setParticleCount(0);
         setParticleState("done");
+        setParticlePhase("done");
         mainView.style.opacity = "";
         mainView.style.transform = "";
         mainView.style.filter = "";
@@ -244,6 +253,7 @@ export default function IntroOpeningHero() {
     if (section) section.style.visibility = "hidden";
     setParticleCount(0);
     setParticleState("done");
+    setParticlePhase("done");
     setSourcePointCount(0);
     setTargetPointCount(0);
     window.__stopWebglFluidBackground?.();
@@ -271,6 +281,7 @@ export default function IntroOpeningHero() {
     }
     stopParticleMorph();
     setParticleState("idle");
+    setParticlePhase("idle");
     setParticleCount(0);
     setSourcePointCount(0);
     setTargetPointCount(0);
@@ -472,6 +483,12 @@ export default function IntroOpeningHero() {
         aria-hidden="true"
         data-intro-particle-transition
         data-particle-transition-state={particleState}
+        data-particle-transition-phase={particlePhase}
+        data-particle-transition-model="three-act-magnetic-field"
+        data-particle-transition-duration-ms="1950"
+        data-particle-max-frame-step-ms="64"
+        data-particle-target-order="grid-avatar-text"
+        data-particle-path="braided-field"
         data-particle-count={particleCount}
         data-particle-source-count={sourcePointCount}
         data-particle-target-count={targetPointCount}
