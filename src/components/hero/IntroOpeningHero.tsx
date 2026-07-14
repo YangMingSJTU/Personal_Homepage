@@ -27,6 +27,10 @@ declare global {
 type FluidTransitionOptions = {
   duration: number;
   injectionCount: number;
+  sinkPoint: {
+    x: number;
+    y: number;
+  };
   timeline: typeof FLUID_TRANSITION_TIMELINE;
   onProgress?: (progress: number) => void;
   onPhaseChange?: (phase: FluidTransitionPhase) => void;
@@ -189,17 +193,28 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
     const profileAvatar = profileCard?.querySelector(".profile-avatar") as HTMLElement | null;
     const fluidCore = fluidCoreRef.current;
     const sectionRect = section.getBoundingClientRect();
-    const coreStart = {
-      x: sectionRect.width / 2,
-      y: sectionRect.height / 2
+    const fallbackTarget = {
+      x: sectionRect.left + sectionRect.width / 2,
+      y: sectionRect.top + sectionRect.height / 2
     };
     const avatarRect = profileAvatar?.getBoundingClientRect();
-    const coreTarget = avatarRect
+    const avatarTarget = avatarRect
       ? {
           x: avatarRect.left + avatarRect.width / 2,
           y: avatarRect.top + avatarRect.height / 2
         }
-      : coreStart;
+      : fallbackTarget;
+    const fluidRect = sourceFluid?.getBoundingClientRect();
+    const sinkPoint = fluidRect && fluidRect.width > 0 && fluidRect.height > 0
+      ? {
+          x: Math.min(1, Math.max(0, (avatarTarget.x - fluidRect.left) / fluidRect.width)),
+          y: Math.min(1, Math.max(0, 1 - (avatarTarget.y - fluidRect.top) / fluidRect.height))
+        }
+      : { x: 0.5, y: 0.5 };
+    const coreTarget = {
+      x: avatarTarget.x - sectionRect.left,
+      y: avatarTarget.y - sectionRect.top
+    };
 
     stopFluidTransition();
     if (sourceContent) sourceContent.style.transition = "none";
@@ -214,8 +229,8 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
       profileCard.style.setProperty("--fluid-profile-progress", "0");
     }
     if (fluidCore) {
-      fluidCore.style.left = `${coreStart.x}px`;
-      fluidCore.style.top = `${coreStart.y}px`;
+      fluidCore.style.left = `${coreTarget.x}px`;
+      fluidCore.style.top = `${coreTarget.y}px`;
       fluidCore.style.opacity = "0";
       fluidCore.style.transform = "translate3d(-50%, -50%, 0) scale(0.82)";
     }
@@ -225,6 +240,7 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
     const controller = startTransition({
       duration: FLUID_TRANSITION_DURATION,
       injectionCount: getFluidInjectionCount(renderQualityRef.current),
+      sinkPoint,
       timeline: FLUID_TRANSITION_TIMELINE,
       onPhaseChange: setFluidTransitionPhase,
       onProgress: (progress) => {
@@ -232,7 +248,6 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
         const sourceDeparture = smoothRange(0.01, 0.16, progress);
         const coreArrival = smoothRange(0.12, 0.3, progress);
         const coreDeparture = smoothRange(0.84, 0.99, progress);
-        const coreHandoff = smoothRange(0.82, 0.98, progress);
         const profileProgress = milestones.revealProfile ? smoothRange(0.76, 0.98, progress) : 0;
 
         if (sourceContent) {
@@ -252,8 +267,6 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
         if (fluidCore) {
           const opacity = coreArrival * (1 - coreDeparture);
           const scale = 0.82 + coreArrival * 0.18 + Math.sin(progress * Math.PI * 5) * 0.012 * (1 - coreDeparture);
-          fluidCore.style.left = `${coreStart.x + (coreTarget.x - coreStart.x) * coreHandoff}px`;
-          fluidCore.style.top = `${coreStart.y + (coreTarget.y - coreStart.y) * coreHandoff}px`;
           fluidCore.style.opacity = opacity.toFixed(4);
           fluidCore.style.transform = `translate3d(-50%, -50%, 0) scale(${scale.toFixed(4)})`;
         }
@@ -526,7 +539,7 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
             data-fluid-config-source="simonaking-homepage"
             data-fluid-transition-state={fluidTransitionState}
             data-fluid-transition-phase={fluidTransitionPhase}
-            data-fluid-transition-model="random-surge-clockwise-center-sink"
+            data-fluid-transition-model="random-surge-clockwise-avatar-sink"
             data-fluid-transition-duration-ms={FLUID_TRANSITION_DURATION}
             data-fluid-transition-injection-count={getFluidInjectionCount(renderQuality)}
             data-fluid-transition-progress="0.0000"

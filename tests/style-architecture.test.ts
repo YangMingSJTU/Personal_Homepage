@@ -42,9 +42,12 @@ describe("style architecture", () => {
     expect(effectsCss).toMatch(/#background\s*\{[^}]*z-index:\s*-1;/s);
     expect(introHero).toContain("BACK_COLOR: { r: 30, g: 31, b: 33 }");
     expect(introHero).toContain('data-transition-visual="clockwise-fluid-vortex-reveal"');
-    expect(introHero).toContain('data-fluid-transition-model="random-surge-clockwise-center-sink"');
+    expect(introHero).toContain('data-fluid-transition-model="random-surge-clockwise-avatar-sink"');
     expect(introHero).toContain("data-fluid-transition-core");
     expect(introHero).toContain("__startWebglFluidTransition");
+    expect(introHero).not.toContain("coreHandoff");
+    expect(introHero.match(/fluidCore\.style\.left/g) ?? []).toHaveLength(1);
+    expect(introHero.match(/fluidCore\.style\.top/g) ?? []).toHaveLength(1);
     expect(introHero).not.toContain("data-intro-particle-transition");
     expect(introHero).not.toContain("startPptParticleMorph");
     expect(introHero).toContain('data-fluid-config-source="simonaking-homepage"');
@@ -89,6 +92,8 @@ describe("style architecture", () => {
     expect(fluidVendor).toContain("window.__startWebglFluidTransition");
     expect(fluidVendor).toContain("clockwise");
     expect(fluidVendor).toContain("transitionProgress");
+    expect(fluidVendor).toContain("uniform vec2 transitionCenter");
+    expect(fluidVendor).toContain("vUv - transitionCenter");
     expect(introHero).not.toContain("data-shape-streak-primary");
     expect(introHero).not.toContain("data-shape-streak-secondary");
   });

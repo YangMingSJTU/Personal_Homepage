@@ -14,6 +14,34 @@ async function getNumericAttribute(locator: Locator, name: string) {
   return Number(await locator.getAttribute(name));
 }
 
+async function expectFluidSinkToMatchAvatar(fluidCanvas: Locator, fluidCore: Locator, avatar: Locator) {
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-sink-x", /^0\.\d{4}$|^1\.0000$/);
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-sink-y", /^0\.\d{4}$|^1\.0000$/);
+
+  const [canvasBox, coreBox, avatarBox] = await Promise.all([
+    fluidCanvas.boundingBox(),
+    fluidCore.boundingBox(),
+    avatar.boundingBox()
+  ]);
+  expect(canvasBox).not.toBeNull();
+  expect(coreBox).not.toBeNull();
+  expect(avatarBox).not.toBeNull();
+
+  const sinkX = await getNumericAttribute(fluidCanvas, "data-fluid-transition-sink-x");
+  const sinkY = await getNumericAttribute(fluidCanvas, "data-fluid-transition-sink-y");
+  const sinkPageX = canvasBox!.x + sinkX * canvasBox!.width;
+  const sinkPageY = canvasBox!.y + (1 - sinkY) * canvasBox!.height;
+  const avatarCenterX = avatarBox!.x + avatarBox!.width / 2;
+  const avatarCenterY = avatarBox!.y + avatarBox!.height / 2;
+  const coreCenterX = coreBox!.x + coreBox!.width / 2;
+  const coreCenterY = coreBox!.y + coreBox!.height / 2;
+
+  expect(Math.abs(sinkPageX - avatarCenterX)).toBeLessThan(2);
+  expect(Math.abs(sinkPageY - avatarCenterY)).toBeLessThan(2);
+  expect(Math.abs(coreCenterX - avatarCenterX)).toBeLessThan(2);
+  expect(Math.abs(coreCenterY - avatarCenterY)).toBeLessThan(2);
+}
+
 async function waitForMainViewSettled(mainView: Locator) {
   await expect
     .poll(() => mainView.evaluate((element) => getComputedStyle(element).transform))
@@ -211,7 +239,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", "idle");
   await expect(fluidCanvas).toHaveAttribute(
     "data-fluid-transition-model",
-    "random-surge-clockwise-center-sink"
+    "random-surge-clockwise-avatar-sink"
   );
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-duration-ms", "2600");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-injection-count", /^(8|10|12)$/);
@@ -259,6 +287,11 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", /^(surge|vortex|absorb|reveal)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", /^0\.\d{4}$/);
   await expect.poll(() => getNumericAttribute(fluidCanvas, "data-fluid-transition-injected-count")).toBeGreaterThan(0);
+  await expectFluidSinkToMatchAvatar(
+    fluidCanvas,
+    hero.locator("[data-fluid-transition-core]"),
+    profileCard.locator("img.profile-avatar")
+  );
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(goBackground).toBeVisible();
   await expect.poll(() => page.locator("html").getAttribute("data-home-render-phase")).toBe("handoff");
@@ -406,7 +439,7 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "running");
   await expect(fluidCanvas).toHaveAttribute(
     "data-fluid-transition-model",
-    "random-surge-clockwise-center-sink"
+    "random-surge-clockwise-avatar-sink"
   );
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();

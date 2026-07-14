@@ -370,10 +370,11 @@ const transitionVelocityShader = compileShader(gl.FRAGMENT_SHADER, `
     uniform float aspectRatio;
     uniform float progress;
     uniform float dt;
+    uniform vec2 transitionCenter;
 
     void main () {
         vec2 velocity = texture2D(uVelocity, vUv).xy;
-        vec2 offset = vUv - 0.5;
+        vec2 offset = vUv - transitionCenter;
         vec2 physicalOffset = vec2(offset.x * aspectRatio, offset.y);
         float distanceToCenter = max(length(physicalOffset), 0.001);
         vec2 radial = physicalOffset / distanceToCenter;
@@ -441,6 +442,7 @@ const displayShaderSource = `
     uniform float transitionActive;
     uniform float transitionProgress;
     uniform float transitionAspectRatio;
+    uniform vec2 transitionCenter;
     uniform vec3 transitionBackground;
 
     vec3 linearToGamma (vec3 color) {
@@ -489,13 +491,17 @@ const displayShaderSource = `
 
         float a = max(c.r, max(c.g, c.b));
         if (transitionActive > 0.5) {
-            vec2 centered = vUv - 0.5;
+            vec2 centered = vUv - transitionCenter;
             vec2 physical = vec2(centered.x * transitionAspectRatio, centered.y);
             float distanceToCenter = length(physical);
             float angle = atan(physical.y, physical.x);
             float materialReveal = smoothstep(0.12, 0.46, transitionProgress);
             float shrink = smoothstep(0.18, 0.96, transitionProgress);
-            float maximumRadius = length(vec2(0.5 * transitionAspectRatio, 0.5)) + 0.08;
+            vec2 furthestAxis = vec2(
+                max(transitionCenter.x, 1.0 - transitionCenter.x) * transitionAspectRatio,
+                max(transitionCenter.y, 1.0 - transitionCenter.y)
+            );
+            float maximumRadius = length(furthestAxis) + 0.08;
             float radius = mix(maximumRadius, 0.0, shrink);
             float ripple = sin(angle * 3.0 - transitionProgress * 13.0) * 0.018 * (1.0 - shrink);
             float spatialMask = 1.0 - smoothstep(radius - 0.052, radius + 0.052, distanceToCenter + ripple);
@@ -1128,15 +1134,19 @@ function injectTransitionSplat(state, index) {
 	else {
 		x = 0.12 + state.random() * 0.76;
 		y = 0.12 + state.random() * 0.76;
-		if (Math.hypot(x - 0.5, y - 0.5) < 0.19) {
-			x = x < 0.5 ? 0.22 : 0.78;
-			y = y < 0.5 ? 0.22 : 0.78;
+		if (Math.hypot(x - state.sinkPoint.x, y - state.sinkPoint.y) < 0.19) {
+			x = x < state.sinkPoint.x
+				? Math.max(0.12, state.sinkPoint.x - 0.28)
+				: Math.min(0.88, state.sinkPoint.x + 0.28);
+			y = y < state.sinkPoint.y
+				? Math.max(0.12, state.sinkPoint.y - 0.28)
+				: Math.min(0.88, state.sinkPoint.y + 0.28);
 		}
 	}
 
 	const aspectRatio = canvas.width / Math.max(1, canvas.height);
-	const offsetX = (x - 0.5) * aspectRatio;
-	const offsetY = y - 0.5;
+	const offsetX = (x - state.sinkPoint.x) * aspectRatio;
+	const offsetY = y - state.sinkPoint.y;
 	const distance = Math.max(0.001, Math.hypot(offsetX, offsetY));
 	const radialX = offsetX / distance;
 	const radialY = offsetY / distance;
@@ -1242,12 +1252,19 @@ window.__startWebglFluidTransition = (options = {}) => {
 	if (!initBackground.loaded || stopped || config.PAUSED) return null;
 	const duration = Math.max(600, Number(options.duration) || 2600);
 	const injectionCount = Math.max(1, Math.round(Number(options.injectionCount) || 10));
+	const requestedSinkX = Number(options.sinkPoint?.x);
+	const requestedSinkY = Number(options.sinkPoint?.y);
+	const sinkPoint = {
+		x: clamp01(Number.isFinite(requestedSinkX) ? requestedSinkX : 0.5),
+		y: clamp01(Number.isFinite(requestedSinkY) ? requestedSinkY : 0.5)
+	};
 	const timeline = Object.assign({}, defaultTransitionTimeline, options.timeline || {});
 	const state = {
 		startedAt: performance.now(),
 		duration,
 		injectionCount,
 		injectedCount: 0,
+		sinkPoint,
 		progress: 0,
 		phase: 'surge',
 		completed: false,
@@ -1263,6 +1280,8 @@ window.__startWebglFluidTransition = (options = {}) => {
 	canvas.dataset.fluidTransitionProgress = '0.0000';
 	canvas.dataset.fluidTransitionInjectedCount = '0';
 	canvas.dataset.fluidTransitionInjectionCount = String(injectionCount);
+	canvas.dataset.fluidTransitionSinkX = sinkPoint.x.toFixed(4);
+	canvas.dataset.fluidTransitionSinkY = sinkPoint.y.toFixed(4);
 	invokeTransitionCallback(state.onPhaseChange, 'surge');
 	return {
 		duration,
@@ -1406,6 +1425,11 @@ function step(dt, activeTransition) {
 		gl.uniform1f(transitionVelocityProgram.uniforms.aspectRatio, canvas.width / Math.max(1, canvas.height));
 		gl.uniform1f(transitionVelocityProgram.uniforms.progress, activeTransition.progress);
 		gl.uniform1f(transitionVelocityProgram.uniforms.dt, dt);
+		gl.uniform2f(
+			transitionVelocityProgram.uniforms.transitionCenter,
+			activeTransition.sinkPoint.x,
+			activeTransition.sinkPoint.y
+		);
 		blit(velocity.write.fbo);
 		velocity.swap();
 	}
@@ -1496,6 +1520,11 @@ function drawDisplay(fbo, width, height) {
 	gl.uniform1f(displayMaterial.uniforms.transitionActive, fluidTransition ? 1 : 0);
 	gl.uniform1f(displayMaterial.uniforms.transitionProgress, fluidTransition ? fluidTransition.progress : 0);
 	gl.uniform1f(displayMaterial.uniforms.transitionAspectRatio, canvas.width / Math.max(1, canvas.height));
+	gl.uniform2f(
+		displayMaterial.uniforms.transitionCenter,
+		fluidTransition ? fluidTransition.sinkPoint.x : 0.5,
+		fluidTransition ? fluidTransition.sinkPoint.y : 0.5
+	);
 	gl.uniform3f(
 		displayMaterial.uniforms.transitionBackground,
 		transitionBackground.r,
