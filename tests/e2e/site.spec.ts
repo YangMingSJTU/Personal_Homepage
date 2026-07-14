@@ -120,7 +120,6 @@ async function placeStoneOnOpenCandidate(page: Page, background: Locator, candid
 }
 
 const githubRepoHref = "https://github.com/YangMingSJTU/Personal_Homepage";
-const profileSignature = "Projects / About";
 const siteBase = "/Personal_Homepage";
 const profileAvatarSrc = `${siteBase}/images/avatar-holy-grail.webp`;
 
@@ -318,8 +317,8 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(goBackground).toHaveAttribute("data-random-timer-state", "running");
   await expect.poll(() => profileCardInner.evaluate((element) => element.classList.contains("in"))).toBe(true);
   await expect(profileCard).toBeInViewport();
-  await expect(profileCard.getByRole("heading", { name: "Personal Homepage" })).toBeVisible();
-  await expect(profileCard.getByText(profileSignature)).toBeVisible();
+  await expect(profileCard.getByRole("heading", { name: "YangMing" })).toBeVisible();
+  await expect(profileCard.getByText("Projects / About", { exact: true })).toHaveCount(0);
   await expect(profileAvatar).toHaveAttribute("src", profileAvatarSrc);
   await expect(profileAvatar).toHaveAttribute("alt", "Holy grail avatar");
   await expect(profileAvatar).toHaveAttribute("decoding", "async");

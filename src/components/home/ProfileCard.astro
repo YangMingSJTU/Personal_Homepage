@@ -7,8 +7,8 @@ interface Props {
 }
 
 const { profile } = Astro.props;
-const title = profile.displayTitle || "Personal Homepage";
-const signature = profile.signature || "Projects / About";
+const title = profile.displayTitle || "YangMing";
+const signature = profile.signature?.trim();
 const links = profile.links?.length
   ? profile.links.filter((link) => link.label !== "GitHub")
   : [
@@ -38,7 +38,7 @@ const links = profile.links?.length
         )
       }
       <h1>{title}</h1>
-      <p>{signature}</p>
+      {signature ? <p>{signature}</p> : null}
     </header>
 
     <nav aria-label="Profile navigation">
