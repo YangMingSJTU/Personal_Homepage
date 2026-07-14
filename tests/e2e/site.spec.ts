@@ -20,32 +20,32 @@ async function waitForMainViewSettled(mainView: Locator) {
     .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
 }
 
-type ParticlePhaseWindow = Window & {
-  __particlePhaseHistory?: string[];
-  __particlePhaseObserver?: MutationObserver;
+type FluidPhaseWindow = Window & {
+  __fluidPhaseHistory?: string[];
+  __fluidPhaseObserver?: MutationObserver;
 };
 
-async function observeParticlePhases(particleTransition: Locator) {
-  await particleTransition.evaluate((element) => {
-    const state = window as ParticlePhaseWindow;
-    state.__particlePhaseObserver?.disconnect();
-    state.__particlePhaseHistory = [element.getAttribute("data-particle-transition-phase") ?? "missing"];
-    state.__particlePhaseObserver = new MutationObserver(() => {
-      const phase = element.getAttribute("data-particle-transition-phase") ?? "missing";
-      if (state.__particlePhaseHistory?.at(-1) !== phase) state.__particlePhaseHistory?.push(phase);
+async function observeFluidPhases(fluidCanvas: Locator) {
+  await fluidCanvas.evaluate((element) => {
+    const state = window as FluidPhaseWindow;
+    state.__fluidPhaseObserver?.disconnect();
+    state.__fluidPhaseHistory = [element.getAttribute("data-fluid-transition-phase") ?? "missing"];
+    state.__fluidPhaseObserver = new MutationObserver(() => {
+      const phase = element.getAttribute("data-fluid-transition-phase") ?? "missing";
+      if (state.__fluidPhaseHistory?.at(-1) !== phase) state.__fluidPhaseHistory?.push(phase);
     });
-    state.__particlePhaseObserver.observe(element, {
+    state.__fluidPhaseObserver.observe(element, {
       attributes: true,
-      attributeFilter: ["data-particle-transition-phase"]
+      attributeFilter: ["data-fluid-transition-phase"]
     });
   });
 }
 
-async function readParticlePhases(page: Page) {
+async function readFluidPhases(page: Page) {
   return page.evaluate(() => {
-    const state = window as ParticlePhaseWindow;
-    state.__particlePhaseObserver?.disconnect();
-    return state.__particlePhaseHistory ?? [];
+    const state = window as FluidPhaseWindow;
+    state.__fluidPhaseObserver?.disconnect();
+    return state.__fluidPhaseHistory ?? [];
   });
 }
 
@@ -114,7 +114,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "intro");
   await expect(page.locator("html")).toHaveAttribute("data-render-quality", /^(high|balanced|low)$/);
   await expect(hero).toHaveAttribute("data-motion-scene", "intro-opening");
-  await expect(hero).toHaveAttribute("data-transition-visual", "ppt-particle-morph");
+  await expect(hero).toHaveAttribute("data-transition-visual", "clockwise-fluid-vortex-reveal");
   await expect(hero.locator(".content-inner > canvas#background[aria-label='进入动画背景']")).toHaveAttribute(
     "data-visual",
     "webgl-fluid-opening"
@@ -206,31 +206,17 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(hero.locator("#background")).toHaveCSS("z-index", "-1");
   await expect(hero.locator(".arrow.arrow-1")).toBeVisible();
   await expect(hero.locator(".arrow.arrow-2")).toBeVisible();
-  const particleFlow = page.locator("[data-intro-particle-transition]");
-  await expect(particleFlow).toBeAttached();
-  await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "idle");
-  await expect(particleFlow).toHaveAttribute("data-particle-transition-phase", "idle");
-  await expect(particleFlow).toHaveAttribute("data-particle-transition-model", "fullscreen-taiji-particle-wipe");
-  await expect(particleFlow).toHaveAttribute("data-particle-transition-duration-ms", "2800");
-  await expect(particleFlow).toHaveAttribute("data-particle-timeline", "wall-clock");
-  await expect(particleFlow).toHaveAttribute("data-render-quality", /^(high|balanced|low)$/);
-  await expect(particleFlow).toHaveAttribute("data-particle-target-order", "main-view-behind-curtain");
-  await expect(particleFlow).toHaveAttribute("data-particle-path", "tangent-continuous-axis-taiji-axis");
-  await expect(particleFlow).toHaveAttribute("data-particle-continuity", "c1-tangent-matched");
-  await expect(particleFlow).toHaveAttribute("data-particle-orbit", "continuous-slow-spin");
-  await expect(particleFlow).toHaveAttribute("data-particle-primitive", "segmented-streamline");
-  await expect(particleFlow).toHaveAttribute("data-particle-endcap", "none");
-  await expect(particleFlow).toHaveAttribute("data-particle-polarities", "light-dark");
-  await expect(particleFlow).toHaveAttribute("data-particle-entry-axes", "light-vertical-dark-horizontal");
-  await expect(particleFlow).toHaveAttribute("data-particle-exit-axes", "opposite-axis-edges");
-  await expect(particleFlow).toHaveAttribute("data-particle-rotation-degrees", "108");
-  await expect(particleFlow).toHaveAttribute("data-particle-taiji-geometry", "s-curve-dual-eyes");
-  await expect(particleFlow).toHaveAttribute("data-particle-coverage", "viewport-diagonal");
-  await expect(particleFlow).toHaveAttribute("data-particle-count", "0");
-  await expect(particleFlow).toHaveAttribute("data-particle-source-count", "0");
-  await expect(particleFlow).toHaveAttribute("data-particle-target-count", "0");
-  await expect(particleFlow).toHaveAttribute("data-particle-flow-direction", "axes-to-taiji-to-axes");
-  await expect(particleFlow).toHaveAttribute("data-particle-mapping", "axis-streams-to-viewport-taiji");
+  const fluidCanvas = hero.locator("#background");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "idle");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", "idle");
+  await expect(fluidCanvas).toHaveAttribute(
+    "data-fluid-transition-model",
+    "random-surge-clockwise-center-sink"
+  );
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-duration-ms", "2600");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-injection-count", /^(8|10|12)$/);
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", "0.0000");
+  await expect(hero.locator("[data-fluid-transition-core]")).toBeAttached();
   await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-streak-primary]")).toHaveCount(0);
@@ -246,6 +232,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
     )
     .toBe(true);
   await expect.poll(() => page.evaluate(() => typeof window.__stopWebglFluidBackground)).toBe("function");
+  await expect.poll(() => page.evaluate(() => typeof window.__startWebglFluidTransition)).toBe("function");
   await expect(hero.locator("#background")).toHaveAttribute("data-fluid-config-source", "simonaking-homepage");
   await expect(page.locator("[data-github-corner]")).toHaveAttribute("href", githubRepoHref);
   await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
@@ -268,27 +255,23 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "transition");
   await expect(hero).toHaveClass(/is-leaving/);
-  await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "running");
-  await expect(particleFlow).toHaveAttribute(
-    "data-particle-transition-phase",
-    /^(disintegrate|stream|assemble|settle)$/
-  );
-  await expect(particleFlow).toHaveAttribute("data-particle-count", /^[1-9]\d*$/);
-  await expect(particleFlow).toHaveAttribute("data-particle-source-count", /^[1-9]\d*$/);
-  await expect(particleFlow).toHaveAttribute("data-particle-target-count", /^[1-9]\d*$/);
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "running");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", /^(surge|vortex|absorb|reveal)$/);
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", /^0\.\d{4}$/);
+  await expect.poll(() => getNumericAttribute(fluidCanvas, "data-fluid-transition-injected-count")).toBeGreaterThan(0);
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(goBackground).toBeVisible();
-  await expect(goBackground).toHaveAttribute("data-render-state", "paused");
   await expect.poll(() => page.locator("html").getAttribute("data-home-render-phase")).toBe("handoff");
-  await expect(hero.locator("#background")).toHaveAttribute("data-fluid-render-state", "stopped");
+  await expect(hero.locator("#background")).toHaveAttribute("data-fluid-render-state", "running");
   await expect(goBackground).toHaveAttribute("data-render-state", "prepared");
   const preparedFrameCount = await getNumericAttribute(goBackground, "data-render-frame-count");
   await waitForMainViewSettled(mainView);
   await expect(mainView).toHaveCSS("opacity", "1");
   await expect(mainView).toHaveCSS("z-index", "1");
-  await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "done");
-  await expect(particleFlow).toHaveAttribute("data-particle-transition-phase", "done");
-  await expect(particleFlow).toHaveAttribute("data-particle-count", "0");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "done");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", "done");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", "1.0000");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-render-state", "stopped");
   await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "main");
   await expect(goBackground).toHaveAttribute("data-handoff-frame-reused", "true");
   expect(await getNumericAttribute(goBackground, "data-render-frame-count")).toBe(preparedFrameCount);
@@ -313,7 +296,7 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   const hero = page.locator('[data-motion-scene="intro-opening"]');
   const background = page.locator("#main-view [data-interactive-go-background]");
   const mainView = page.locator("#main-view");
-  const particleTransition = page.locator("[data-intro-particle-transition]");
+  const fluidCanvas = hero.locator("#background");
 
   await expect(hero.locator("canvas[aria-label='进入动画背景']")).toBeVisible();
   await expect(hero.locator("canvas[aria-label='进入动画背景']")).toHaveAttribute("data-visual", "webgl-fluid-opening");
@@ -351,14 +334,9 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "main");
   await expect(hero).toHaveClass(/is-leaving/);
   await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
-  await expect(particleTransition).toHaveAttribute(
-    "data-particle-transition-state",
-    "done"
-  );
-  await expect(particleTransition).toHaveAttribute("data-particle-count", "0");
-  await expect(particleTransition).toHaveAttribute("data-particle-source-count", "0");
-  await expect(particleTransition).toHaveAttribute("data-particle-target-count", "0");
-  await expect(particleTransition).toHaveAttribute("data-particle-transition-phase", "done");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "done");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", "done");
+  await expect(hero.locator("[data-fluid-transition-core]")).not.toBeVisible();
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(background).toBeVisible();
   await expect(background).toHaveAttribute("data-stone-count", /^[1-9]\d*$/);
@@ -391,10 +369,10 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await page.goto(pagePath("/"));
   const hero = page.locator('[data-motion-scene="intro-opening"]');
   const background = page.locator("#main-view [data-interactive-go-background]");
-  const particleTransition = page.locator("[data-intro-particle-transition]");
+  const fluidCanvas = hero.locator("#background");
 
   await expect(hero.locator(".wrap.fade")).toHaveClass(/in/);
-  await observeParticlePhases(particleTransition);
+  await observeFluidPhases(fluidCanvas);
   if (test.info().project.name === "mobile") {
     await hero.evaluate((element) => {
       const startTouch = new Touch({ identifier: 1, target: element, clientX: 200, clientY: 620 });
@@ -425,30 +403,18 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(hero).toHaveClass(/is-leaving/);
   await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
-  await expect(particleTransition).toHaveAttribute(
-    "data-particle-transition-state",
-    "running"
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "running");
+  await expect(fluidCanvas).toHaveAttribute(
+    "data-fluid-transition-model",
+    "random-surge-clockwise-center-sink"
   );
-  await expect(particleTransition).toHaveAttribute(
-    "data-particle-flow-direction",
-    "axes-to-taiji-to-axes"
-  );
-  await expect(particleTransition).toHaveAttribute(
-    "data-particle-mapping",
-    "axis-streams-to-viewport-taiji"
-  );
-  await expect(particleTransition).toHaveAttribute("data-particle-transition-model", "fullscreen-taiji-particle-wipe");
-  await expect(particleTransition).toHaveAttribute("data-particle-target-order", "main-view-behind-curtain");
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();
   await waitForMainViewSettled(page.locator("#main-view"));
-  await expect(particleTransition).toHaveAttribute(
-    "data-particle-transition-state",
-    "done"
-  );
-  const phaseHistory = await readParticlePhases(page);
-  const phaseIndexes = ["disintegrate", "stream", "assemble", "settle", "done"].map((phase) =>
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "done");
+  const phaseHistory = await readFluidPhases(page);
+  const phaseIndexes = ["surge", "vortex", "absorb", "reveal", "done"].map((phase) =>
     phaseHistory.indexOf(phase)
   );
   expect(phaseIndexes.every((index) => index >= 0)).toBe(true);

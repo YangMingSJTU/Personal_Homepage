@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  startPptParticleMorph,
-  type ParticleMorphPhase
-} from "@/components/hero/particleMorphTransition";
+  FLUID_TRANSITION_DURATION,
+  FLUID_TRANSITION_TIMELINE,
+  getFluidInjectionCount,
+  type FluidTransitionPhase
+} from "@/components/hero/fluidTransition";
 import {
   getRenderProfile,
   resolveRenderQuality,
@@ -17,9 +19,25 @@ declare global {
     config?: Record<string, unknown>;
     switchPage?: { switched: boolean };
     __stopWebglFluidBackground?: () => void;
+    __startWebglFluidTransition?: (options: FluidTransitionOptions) => FluidTransitionController | null;
     __personalFluidScriptLoaded?: boolean;
   }
 }
+
+type FluidTransitionOptions = {
+  duration: number;
+  injectionCount: number;
+  timeline: typeof FLUID_TRANSITION_TIMELINE;
+  onProgress?: (progress: number) => void;
+  onPhaseChange?: (phase: FluidTransitionPhase) => void;
+  onComplete?: () => void;
+};
+
+type FluidTransitionController = {
+  cancel: () => void;
+  duration: number;
+  injectionCount: number;
+};
 
 const simonAKingFluidConfig = {
   SIM_RESOLUTION: 128,
@@ -78,8 +96,7 @@ const quoteSweepWindowMs = 820;
 const quoteTransitionMs = quoteSweepWindowMs * 2 + quoteCharacterInMs + quoteCharacterOutMs + quoteInterludeMs;
 const quoteInitialRevealMs = quoteSweepWindowMs + quoteCharacterInMs;
 
-type ParticleTransitionState = "idle" | "running" | "done";
-type ParticleTransitionVisualPhase = "idle" | ParticleMorphPhase;
+type FluidTransitionState = "idle" | "running" | "done";
 type QuotePhase = "waiting" | "entering" | "steady" | "transitioning";
 
 interface QuoteState {
@@ -134,13 +151,16 @@ function smoothRange(start: number, end: number, value: number) {
   return normalized * normalized * (3 - 2 * normalized);
 }
 
-export default function IntroOpeningHero() {
+interface IntroOpeningHeroProps {
+  avatarSrc?: string;
+}
+
+export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
   const sectionRef = useRef<HTMLElement | null>(null);
-  const particleCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const particleControllerRef = useRef<ReturnType<typeof startPptParticleMorph> | null>(null);
+  const fluidCoreRef = useRef<HTMLDivElement | null>(null);
+  const fluidTransitionControllerRef = useRef<FluidTransitionController | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
-  const fluidStoppedRef = useRef(false);
   const handoffPreparedRef = useRef(false);
   const renderQualityRef = useRef<RenderQuality>("balanced");
   const [quoteState, setQuoteState] = useState<QuoteState>({
@@ -149,106 +169,141 @@ export default function IntroOpeningHero() {
     phase: "waiting"
   });
   const [introLoaded, setIntroLoaded] = useState(false);
-  const [particleState, setParticleState] = useState<ParticleTransitionState>("idle");
-  const [particlePhase, setParticlePhase] = useState<ParticleTransitionVisualPhase>("idle");
-  const [particleCount, setParticleCount] = useState(0);
-  const [sourcePointCount, setSourcePointCount] = useState(0);
-  const [targetPointCount, setTargetPointCount] = useState(0);
+  const [fluidTransitionState, setFluidTransitionState] = useState<FluidTransitionState>("idle");
+  const [fluidTransitionPhase, setFluidTransitionPhase] = useState<FluidTransitionPhase>("idle");
   const [renderQuality, setRenderQuality] = useState<RenderQuality>("balanced");
 
-  const stopParticleMorph = useCallback(() => {
-    particleControllerRef.current?.cancel();
-    particleControllerRef.current = null;
+  const stopFluidTransition = useCallback(() => {
+    fluidTransitionControllerRef.current?.cancel();
+    fluidTransitionControllerRef.current = null;
   }, []);
 
-  const runParticleMorph = useCallback((mainView: HTMLElement, profileCardInner: HTMLElement | null) => {
-    const canvas = particleCanvasRef.current;
+  const runFluidTransition = useCallback((mainView: HTMLElement, profileCardInner: HTMLElement | null) => {
     const section = sectionRef.current;
-    if (!canvas || !section) return false;
+    const startTransition = window.__startWebglFluidTransition;
+    if (!section || !startTransition) return false;
 
     const sourceContent = section.querySelector(".wrap") as HTMLElement | null;
     const sourceFluid = section.querySelector("#background") as HTMLCanvasElement | null;
+    const profileCard = document.querySelector("[data-profile-card]") as HTMLElement | null;
+    const profileAvatar = profileCard?.querySelector(".profile-avatar") as HTMLElement | null;
+    const fluidCore = fluidCoreRef.current;
+    const sectionRect = section.getBoundingClientRect();
+    const coreStart = {
+      x: sectionRect.width / 2,
+      y: sectionRect.height / 2
+    };
+    const avatarRect = profileAvatar?.getBoundingClientRect();
+    const coreTarget = avatarRect
+      ? {
+          x: avatarRect.left + avatarRect.width / 2,
+          y: avatarRect.top + avatarRect.height / 2
+        }
+      : coreStart;
 
-    stopParticleMorph();
+    stopFluidTransition();
     if (sourceContent) sourceContent.style.transition = "none";
     if (profileCardInner) {
       profileCardInner.style.animation = "none";
       profileCardInner.style.transition = "none";
+      profileCardInner.style.opacity = "1";
+      profileCardInner.style.transform = "none";
     }
-    setParticleState("running");
-    setParticlePhase("disintegrate");
-    fluidStoppedRef.current = false;
+    if (profileCard) {
+      profileCard.dataset.fluidHandoff = "active";
+      profileCard.style.setProperty("--fluid-profile-progress", "0");
+    }
+    if (fluidCore) {
+      fluidCore.style.left = `${coreStart.x}px`;
+      fluidCore.style.top = `${coreStart.y}px`;
+      fluidCore.style.opacity = "0";
+      fluidCore.style.transform = "translate3d(-50%, -50%, 0) scale(0.82)";
+    }
+    setFluidTransitionState("running");
+    setFluidTransitionPhase("surge");
     handoffPreparedRef.current = false;
-    const controller = startPptParticleMorph({
-      canvas,
-      quality: renderQualityRef.current,
-      onPhaseChange: setParticlePhase,
+    const controller = startTransition({
+      duration: FLUID_TRANSITION_DURATION,
+      injectionCount: getFluidInjectionCount(renderQualityRef.current),
+      timeline: FLUID_TRANSITION_TIMELINE,
+      onPhaseChange: setFluidTransitionPhase,
       onProgress: (progress) => {
         const milestones = getTransitionMilestones(progress);
-        const sourceDeparture = smoothRange(0.02, 0.24, progress);
-        const gridProgress = smoothRange(0.44, 0.6, progress);
-        const cardProgress = smoothRange(0.48, 0.64, progress);
+        const sourceDeparture = smoothRange(0.01, 0.16, progress);
+        const coreArrival = smoothRange(0.12, 0.3, progress);
+        const coreDeparture = smoothRange(0.84, 0.99, progress);
+        const coreHandoff = smoothRange(0.82, 0.98, progress);
+        const profileProgress = milestones.revealProfile ? smoothRange(0.76, 0.98, progress) : 0;
 
         if (sourceContent) {
           sourceContent.style.opacity = (1 - sourceDeparture).toFixed(4);
-          sourceContent.style.transform = `translate3d(0, ${(-sourceDeparture * 16).toFixed(2)}px, 0) scale(${(
-            1 +
-            sourceDeparture * 0.035
+          sourceContent.style.transform = `translate3d(0, ${(-sourceDeparture * 12).toFixed(2)}px, 0) scale(${(
+            1 + sourceDeparture * 0.018
           ).toFixed(4)})`;
-          sourceContent.style.filter = `blur(${(sourceDeparture * 5).toFixed(2)}px)`;
-        }
-        if (sourceFluid) {
-          sourceFluid.style.opacity = (1 - smoothRange(0.08, 0.3, progress)).toFixed(4);
-        }
-        if (!fluidStoppedRef.current && milestones.releaseFluid) {
-          fluidStoppedRef.current = true;
-          window.__stopWebglFluidBackground?.();
-          sourceFluid?.setAttribute("data-fluid-render-state", "stopped");
+          sourceContent.style.filter = `blur(${(sourceDeparture * 3).toFixed(2)}px)`;
         }
         if (!handoffPreparedRef.current && milestones.prepareHandoff) {
           handoffPreparedRef.current = true;
           setHomeRenderPhase("handoff", renderQualityRef.current);
         }
-        mainView.style.opacity = gridProgress.toFixed(4);
-        mainView.style.transform = `translate3d(0, ${((1 - gridProgress) * 2.5).toFixed(3)}vh, 0) scale(${(
-          0.985 +
-          gridProgress * 0.015
-        ).toFixed(4)})`;
-
-        if (profileCardInner) {
-          profileCardInner.style.opacity = cardProgress.toFixed(4);
-          profileCardInner.style.transform = `translate3d(0, ${((1 - cardProgress) * 18).toFixed(2)}px, 0) scale(${(
-            0.98 +
-            cardProgress * 0.02
-          ).toFixed(4)})`;
+        if (profileCard) {
+          profileCard.style.setProperty("--fluid-profile-progress", profileProgress.toFixed(4));
+        }
+        if (fluidCore) {
+          const opacity = coreArrival * (1 - coreDeparture);
+          const scale = 0.82 + coreArrival * 0.18 + Math.sin(progress * Math.PI * 5) * 0.012 * (1 - coreDeparture);
+          fluidCore.style.left = `${coreStart.x + (coreTarget.x - coreStart.x) * coreHandoff}px`;
+          fluidCore.style.top = `${coreStart.y + (coreTarget.y - coreStart.y) * coreHandoff}px`;
+          fluidCore.style.opacity = opacity.toFixed(4);
+          fluidCore.style.transform = `translate3d(-50%, -50%, 0) scale(${scale.toFixed(4)})`;
         }
       },
       onComplete: () => {
-        setParticleCount(0);
-        setParticleState("done");
-        setParticlePhase("done");
+        setFluidTransitionState("done");
+        setFluidTransitionPhase("done");
         mainView.style.opacity = "";
         mainView.style.transform = "";
         mainView.style.zIndex = "";
+        if (profileCard) {
+          delete profileCard.dataset.fluidHandoff;
+          profileCard.style.removeProperty("--fluid-profile-progress");
+        }
         if (profileCardInner) {
           profileCardInner.classList.add("in");
           profileCardInner.style.opacity = "";
           profileCardInner.style.transform = "";
+          profileCardInner.style.animation = "";
+          profileCardInner.style.transition = "";
         }
-        if (sourceFluid) sourceFluid.style.opacity = "";
-        if (!fluidStoppedRef.current) window.__stopWebglFluidBackground?.();
+        if (fluidCore) {
+          fluidCore.style.opacity = "0";
+          fluidCore.style.transform = "translate3d(-50%, -50%, 0) scale(0.96)";
+        }
+        window.__stopWebglFluidBackground?.();
+        sourceFluid?.setAttribute("data-fluid-render-state", "stopped");
         setHomeRenderPhase("main", renderQualityRef.current);
         window.requestAnimationFrame(() => {
           section.style.visibility = "hidden";
         });
       }
     });
-    particleControllerRef.current = controller;
-    setParticleCount(controller.particleCount);
-    setSourcePointCount(controller.sourcePointCount);
-    setTargetPointCount(controller.targetPointCount);
-    return controller.particleCount > 0;
-  }, [stopParticleMorph]);
+    if (!controller) {
+      if (profileCard) {
+        delete profileCard.dataset.fluidHandoff;
+        profileCard.style.removeProperty("--fluid-profile-progress");
+      }
+      if (profileCardInner) {
+        profileCardInner.style.opacity = "";
+        profileCardInner.style.transform = "";
+      }
+      if (fluidCore) {
+        fluidCore.style.opacity = "0";
+      }
+      return false;
+    }
+    fluidTransitionControllerRef.current = controller;
+    return true;
+  }, [stopFluidTransition]);
 
   const enterMainView = useCallback(() => {
     if (leavingRef.current) return;
@@ -258,16 +313,16 @@ export default function IntroOpeningHero() {
     const mainView = document.querySelector("#main-view") as HTMLElement | null;
     const profileCardInner = document.querySelector(".profile-card-inner") as HTMLElement | null;
     if (mainView) {
-      mainView.style.transform = "none";
-      mainView.style.opacity = "0";
-      mainView.style.zIndex = "120";
+      mainView.style.transform = "";
+      mainView.style.opacity = "";
+      mainView.style.zIndex = "";
     }
     setHomeRenderPhase("transition", renderQualityRef.current);
     document.documentElement.dataset.mainView = "active";
     section?.classList.add("is-leaving");
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!reduceMotion && section && mainView && runParticleMorph(mainView, profileCardInner)) {
+    if (!reduceMotion && section && mainView && runFluidTransition(mainView, profileCardInner)) {
       return;
     }
 
@@ -284,14 +339,11 @@ export default function IntroOpeningHero() {
       profileCardInner.style.transition = "";
     }
     if (section) section.style.visibility = "hidden";
-    setParticleCount(0);
-    setParticleState("done");
-    setParticlePhase("done");
-    setSourcePointCount(0);
-    setTargetPointCount(0);
+    setFluidTransitionState("done");
+    setFluidTransitionPhase("done");
     window.__stopWebglFluidBackground?.();
     setHomeRenderPhase("main", renderQualityRef.current);
-  }, [runParticleMorph]);
+  }, [runFluidTransition]);
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -300,7 +352,6 @@ export default function IntroOpeningHero() {
     setRenderQuality(quality);
     setHomeRenderPhase("intro", quality);
     leavingRef.current = false;
-    fluidStoppedRef.current = false;
     handoffPreparedRef.current = false;
     document.documentElement.removeAttribute("data-main-view");
     const profileCardInner = document.querySelector(".profile-card-inner") as HTMLElement | null;
@@ -317,12 +368,9 @@ export default function IntroOpeningHero() {
       mainView.style.transform = "";
       mainView.style.zIndex = "";
     }
-    stopParticleMorph();
-    setParticleState("idle");
-    setParticlePhase("idle");
-    setParticleCount(0);
-    setSourcePointCount(0);
-    setTargetPointCount(0);
+    stopFluidTransition();
+    setFluidTransitionState("idle");
+    setFluidTransitionPhase("idle");
     setQuoteState({ active: pickIntroQuote(), outgoing: null, phase: "waiting" });
     window.config = { ...getFluidConfig(quality), PAUSED: reduceMotion };
     window.switchPage = { switched: false };
@@ -402,6 +450,17 @@ export default function IntroOpeningHero() {
       sourceContent.style.transition = "";
     }
     if (sourceFluid) sourceFluid.style.opacity = "";
+    const profileCard = document.querySelector("[data-profile-card]") as HTMLElement | null;
+    if (profileCard) {
+      delete profileCard.dataset.fluidHandoff;
+      profileCard.style.removeProperty("--fluid-profile-progress");
+    }
+    if (fluidCoreRef.current) {
+      fluidCoreRef.current.style.opacity = "";
+      fluidCoreRef.current.style.transform = "";
+      fluidCoreRef.current.style.left = "";
+      fluidCoreRef.current.style.top = "";
+    }
 
     const handleWheel = (event: WheelEvent) => {
       if (event.deltaY <= 20) return;
@@ -442,10 +501,10 @@ export default function IntroOpeningHero() {
       section.removeEventListener("touchstart", handleTouchStart);
       section.removeEventListener("touchend", handleTouchEnd);
       window.switchPage = { switched: true };
-      stopParticleMorph();
+      stopFluidTransition();
       window.__stopWebglFluidBackground?.();
     };
-  }, [enterMainView, stopParticleMorph]);
+  }, [enterMainView, stopFluidTransition]);
 
   return (
     <>
@@ -454,7 +513,7 @@ export default function IntroOpeningHero() {
         className="content content-intro"
         aria-label="进入动画"
         data-motion-scene="intro-opening"
-        data-transition-visual="ppt-particle-morph"
+        data-transition-visual="clockwise-fluid-vortex-reveal"
         data-render-quality={renderQuality}
       >
         <div className="content-inner">
@@ -465,7 +524,19 @@ export default function IntroOpeningHero() {
             data-webgl-fluid-background
             data-fluid-quality={renderQuality}
             data-fluid-config-source="simonaking-homepage"
+            data-fluid-transition-state={fluidTransitionState}
+            data-fluid-transition-phase={fluidTransitionPhase}
+            data-fluid-transition-model="random-surge-clockwise-center-sink"
+            data-fluid-transition-duration-ms={FLUID_TRANSITION_DURATION}
+            data-fluid-transition-injection-count={getFluidInjectionCount(renderQuality)}
+            data-fluid-transition-progress="0.0000"
           />
+
+          {avatarSrc ? (
+            <div ref={fluidCoreRef} className="fluid-transition-core" data-fluid-transition-core aria-hidden="true">
+              <img src={avatarSrc} alt="" width="112" height="112" decoding="async" />
+            </div>
+          ) : null}
 
           <div className={`wrap fade${introLoaded ? " in" : ""}`}>
             <h2 className="content-title">{introTitle}</h2>
@@ -521,36 +592,6 @@ export default function IntroOpeningHero() {
           </div>
         </div>
       </section>
-      <canvas
-        ref={particleCanvasRef}
-        className="intro-particle-morph"
-        aria-hidden="true"
-        data-intro-particle-transition
-        data-particle-transition-state={particleState}
-        data-particle-transition-phase={particlePhase}
-        data-particle-transition-model="fullscreen-taiji-particle-wipe"
-        data-particle-transition-duration-ms="2800"
-        data-particle-timeline="wall-clock"
-        data-render-quality={renderQuality}
-        data-particle-dpr-cap={getRenderProfile(renderQuality).particleDprCap}
-        data-particle-target-order="main-view-behind-curtain"
-        data-particle-path="tangent-continuous-axis-taiji-axis"
-        data-particle-continuity="c1-tangent-matched"
-        data-particle-orbit="continuous-slow-spin"
-        data-particle-primitive="segmented-streamline"
-        data-particle-endcap="none"
-        data-particle-polarities="light-dark"
-        data-particle-entry-axes="light-vertical-dark-horizontal"
-        data-particle-exit-axes="opposite-axis-edges"
-        data-particle-rotation-degrees="108"
-        data-particle-taiji-geometry="s-curve-dual-eyes"
-        data-particle-coverage="viewport-diagonal"
-        data-particle-count={particleCount}
-        data-particle-source-count={sourcePointCount}
-        data-particle-target-count={targetPointCount}
-        data-particle-flow-direction="axes-to-taiji-to-axes"
-        data-particle-mapping="axis-streams-to-viewport-taiji"
-      />
     </>
   );
 }

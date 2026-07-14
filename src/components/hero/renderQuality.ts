@@ -9,8 +9,6 @@ export type RenderCapabilities = {
 };
 
 export type RenderProfile = {
-  particleCount: number;
-  particleDprCap: number;
   goDprCap: number;
   fluid: {
     PIXEL_RATIO_CAP: number;
@@ -26,8 +24,6 @@ export type RenderProfile = {
 
 const renderProfiles: Record<RenderQuality, RenderProfile> = {
   high: {
-    particleCount: 1600,
-    particleDprCap: 1.5,
     goDprCap: 1.5,
     fluid: {
       PIXEL_RATIO_CAP: 1.5,
@@ -41,8 +37,6 @@ const renderProfiles: Record<RenderQuality, RenderProfile> = {
     }
   },
   balanced: {
-    particleCount: 1300,
-    particleDprCap: 1.5,
     goDprCap: 1.35,
     fluid: {
       PIXEL_RATIO_CAP: 1.5,
@@ -56,8 +50,6 @@ const renderProfiles: Record<RenderQuality, RenderProfile> = {
     }
   },
   low: {
-    particleCount: 700,
-    particleDprCap: 1.25,
     goDprCap: 1.25,
     fluid: {
       PIXEL_RATIO_CAP: 1.25,

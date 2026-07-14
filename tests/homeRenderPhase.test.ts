@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  FLUID_RELEASE_PROGRESS,
   HANDOFF_PREPARE_PROGRESS,
+  PROFILE_REVEAL_PROGRESS,
   getTransitionMilestones
 } from "@/lib/homeRenderPhase";
 
 describe("homepage render handoff", () => {
-  it("releases WebGL before preparing the go background", () => {
-    expect(FLUID_RELEASE_PROGRESS).toBe(0.3);
-    expect(HANDOFF_PREPARE_PROGRESS).toBe(0.4);
-    expect(getTransitionMilestones(0.29)).toEqual({ releaseFluid: false, prepareHandoff: false });
-    expect(getTransitionMilestones(0.3)).toEqual({ releaseFluid: true, prepareHandoff: false });
-    expect(getTransitionMilestones(0.4)).toEqual({ releaseFluid: true, prepareHandoff: true });
+  it("prepares the board before the fluid mask reveals it", () => {
+    expect(HANDOFF_PREPARE_PROGRESS).toBe(0.08);
+    expect(PROFILE_REVEAL_PROGRESS).toBe(0.76);
+    expect(getTransitionMilestones(0.07)).toEqual({ prepareHandoff: false, revealProfile: false });
+    expect(getTransitionMilestones(0.08)).toEqual({ prepareHandoff: true, revealProfile: false });
+    expect(getTransitionMilestones(0.76)).toEqual({ prepareHandoff: true, revealProfile: true });
   });
 });

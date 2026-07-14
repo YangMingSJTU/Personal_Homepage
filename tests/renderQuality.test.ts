@@ -47,11 +47,7 @@ describe("homepage render quality", () => {
     ).toBe("high");
   });
 
-  it("scales particles while preserving the reference fluid appearance", () => {
-    expect(getRenderProfile("high").particleCount).toBe(1600);
-    expect(getRenderProfile("balanced").particleCount).toBe(1300);
-    expect(getRenderProfile("low").particleCount).toBe(700);
-
+  it("preserves the reference fluid appearance across quality profiles", () => {
     for (const quality of ["high", "balanced", "low"] as const) {
       const fluid = getRenderProfile(quality).fluid;
       expect(fluid.SIM_RESOLUTION).toBe(128);

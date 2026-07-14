@@ -76,7 +76,7 @@ await resetProbe();
 const transitionStartedAt = Date.now();
 await page.keyboard.press("Enter");
 await page.waitForFunction(
-  () => document.querySelector("[data-intro-particle-transition]")?.getAttribute("data-particle-transition-state") === "done",
+  () => document.querySelector("[data-webgl-fluid-background]")?.getAttribute("data-fluid-transition-state") === "done",
   undefined,
   { timeout: 5000 }
 );

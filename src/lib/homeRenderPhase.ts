@@ -8,13 +8,13 @@ export type HomeRenderPhaseDetail = {
 };
 
 export const HOME_RENDER_PHASE_EVENT = "personal-homepage:render-phase";
-export const FLUID_RELEASE_PROGRESS = 0.3;
-export const HANDOFF_PREPARE_PROGRESS = 0.4;
+export const HANDOFF_PREPARE_PROGRESS = 0.08;
+export const PROFILE_REVEAL_PROGRESS = 0.76;
 
 export function getTransitionMilestones(progress: number) {
   return {
-    releaseFluid: progress >= FLUID_RELEASE_PROGRESS,
-    prepareHandoff: progress >= HANDOFF_PREPARE_PROGRESS
+    prepareHandoff: progress >= HANDOFF_PREPARE_PROGRESS,
+    revealProfile: progress >= PROFILE_REVEAL_PROGRESS
   };
 }
 

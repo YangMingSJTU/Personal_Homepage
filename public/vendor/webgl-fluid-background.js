@@ -361,6 +361,40 @@ const clearShader = compileShader(gl.FRAGMENT_SHADER, `
     }
 `);
 
+const transitionVelocityShader = compileShader(gl.FRAGMENT_SHADER, `
+    precision highp float;
+    precision highp sampler2D;
+
+    varying vec2 vUv;
+    uniform sampler2D uVelocity;
+    uniform float aspectRatio;
+    uniform float progress;
+    uniform float dt;
+
+    void main () {
+        vec2 velocity = texture2D(uVelocity, vUv).xy;
+        vec2 offset = vUv - 0.5;
+        vec2 physicalOffset = vec2(offset.x * aspectRatio, offset.y);
+        float distanceToCenter = max(length(physicalOffset), 0.001);
+        vec2 radial = physicalOffset / distanceToCenter;
+        vec2 clockwise = vec2(radial.y, -radial.x);
+        clockwise.x /= aspectRatio;
+        radial.x /= aspectRatio;
+
+        float arrival = smoothstep(0.0, 0.24, progress);
+        float absorption = smoothstep(0.46, 0.92, progress);
+        float centerFalloff = 1.0 - smoothstep(0.04, 1.08, distanceToCenter);
+        float outerBoost = smoothstep(0.08, 0.72, distanceToCenter);
+        float swirlStrength = mix(760.0, 1280.0, arrival) * (1.0 - absorption * 0.34);
+        float sinkStrength = mix(180.0, 1720.0, absorption);
+        vec2 force = clockwise * swirlStrength + (-radial) * sinkStrength;
+        force *= centerFalloff * mix(0.62, 1.0, outerBoost);
+        velocity += force * dt;
+
+        gl_FragColor = vec4(velocity, 0.0, 1.0);
+    }
+`);
+
 const colorShader = compileShader(gl.FRAGMENT_SHADER, `
     precision mediump float;
 
@@ -404,6 +438,10 @@ const displayShaderSource = `
     uniform sampler2D uDithering;
     uniform vec2 ditherScale;
     uniform vec2 texelSize;
+    uniform float transitionActive;
+    uniform float transitionProgress;
+    uniform float transitionAspectRatio;
+    uniform vec3 transitionBackground;
 
     vec3 linearToGamma (vec3 color) {
         color = max(color, vec3(0));
@@ -450,7 +488,29 @@ const displayShaderSource = `
     #endif
 
         float a = max(c.r, max(c.g, c.b));
-        gl_FragColor = vec4(c, a);
+        if (transitionActive > 0.5) {
+            vec2 centered = vUv - 0.5;
+            vec2 physical = vec2(centered.x * transitionAspectRatio, centered.y);
+            float distanceToCenter = length(physical);
+            float angle = atan(physical.y, physical.x);
+            float materialReveal = smoothstep(0.12, 0.46, transitionProgress);
+            float shrink = smoothstep(0.18, 0.96, transitionProgress);
+            float maximumRadius = length(vec2(0.5 * transitionAspectRatio, 0.5)) + 0.08;
+            float radius = mix(maximumRadius, 0.0, shrink);
+            float ripple = sin(angle * 3.0 - transitionProgress * 13.0) * 0.018 * (1.0 - shrink);
+            float spatialMask = 1.0 - smoothstep(radius - 0.052, radius + 0.052, distanceToCenter + ripple);
+            float fluidAlpha = smoothstep(0.012, 0.12, a);
+            float absorption = smoothstep(0.7, 0.96, transitionProgress);
+            float centerGradient = 1.0 - smoothstep(radius * 0.16, max(radius, 0.001), distanceToCenter);
+            float absorptionMask = mix(1.0, pow(max(centerGradient, 0.0), 0.42), absorption);
+            float finalFade = 1.0 - smoothstep(0.92, 1.0, transitionProgress);
+            float alpha = mix(1.0, fluidAlpha, materialReveal) * spatialMask * absorptionMask * finalFade;
+            vec3 transitionColor = c + transitionBackground * (1.0 - materialReveal);
+            gl_FragColor = vec4(transitionColor * alpha, alpha);
+        }
+        else {
+            gl_FragColor = vec4(c, a);
+        }
     }
 `;
 
@@ -788,6 +848,7 @@ let ditheringTexture = createTextureAsync(`${vendorAssetBase}background.png`);
 const blurProgram = new Program(blurVertexShader, blurShader);
 const copyProgram = new Program(baseVertexShader, copyShader);
 const clearProgram = new Program(baseVertexShader, clearShader);
+const transitionVelocityProgram = new Program(baseVertexShader, transitionVelocityShader);
 const colorProgram = new Program(baseVertexShader, colorShader);
 const checkerboardProgram = new Program(baseVertexShader, checkerboardShader);
 const bloomPrefilterProgram = new Program(baseVertexShader, bloomPrefilterShader);
@@ -990,6 +1051,146 @@ function updateKeywords() {
 
 let lastUpdateTime = Date.now();
 let colorUpdateTimer = 0.0;
+let fluidTransition = null;
+
+const defaultTransitionTimeline = {
+	surgeEnd: 0.22,
+	vortexEnd: 0.56,
+	absorbEnd: 0.88
+};
+
+function clamp01(value) {
+	return Math.min(1, Math.max(0, value));
+}
+
+function smoothProgress(value) {
+	const normalized = clamp01(value);
+	return normalized * normalized * (3 - 2 * normalized);
+}
+
+function createSeededTransitionRandom(seed) {
+	let value = seed >>> 0;
+	return () => {
+		value = (value * 1664525 + 1013904223) >>> 0;
+		return value / 4294967296;
+	};
+}
+
+function resolveFluidTransitionPhase(progress, timeline) {
+	if (progress >= 1) return 'done';
+	if (progress >= timeline.absorbEnd) return 'reveal';
+	if (progress >= timeline.vortexEnd) return 'absorb';
+	if (progress >= timeline.surgeEnd) return 'vortex';
+	return 'surge';
+}
+
+function getInjectedTransitionCount(progress, total, surgeEnd) {
+	if (total <= 0 || progress <= 0) return 0;
+	const normalized = clamp01(progress / surgeEnd);
+	return Math.min(total, Math.floor(smoothProgress(normalized) * total + Number.EPSILON));
+}
+
+function invokeTransitionCallback(callback, value) {
+	if (typeof callback !== 'function') return;
+	try {
+		callback(value);
+	}
+	catch (error) {
+		console.error('Fluid transition callback failed.', error);
+	}
+}
+
+function injectTransitionSplat(state, index) {
+	const edgeCount = Math.ceil(state.injectionCount * 0.72);
+	let x;
+	let y;
+	if (index < edgeCount) {
+		const edge = index % 4;
+		const alongEdge = 0.08 + state.random() * 0.84;
+		const inset = 0.025 + state.random() * 0.055;
+		if (edge === 0) {
+			x = alongEdge;
+			y = 1 - inset;
+		}
+		else if (edge === 1) {
+			x = 1 - inset;
+			y = alongEdge;
+		}
+		else if (edge === 2) {
+			x = alongEdge;
+			y = inset;
+		}
+		else {
+			x = inset;
+			y = alongEdge;
+		}
+	}
+	else {
+		x = 0.12 + state.random() * 0.76;
+		y = 0.12 + state.random() * 0.76;
+		if (Math.hypot(x - 0.5, y - 0.5) < 0.19) {
+			x = x < 0.5 ? 0.22 : 0.78;
+			y = y < 0.5 ? 0.22 : 0.78;
+		}
+	}
+
+	const aspectRatio = canvas.width / Math.max(1, canvas.height);
+	const offsetX = (x - 0.5) * aspectRatio;
+	const offsetY = y - 0.5;
+	const distance = Math.max(0.001, Math.hypot(offsetX, offsetY));
+	const radialX = offsetX / distance;
+	const radialY = offsetY / distance;
+	const clockwiseX = radialY / aspectRatio;
+	const clockwiseY = -radialX;
+	const inwardX = -radialX / aspectRatio;
+	const inwardY = -radialY;
+	const force = 860 + state.random() * 520;
+	const dx = (clockwiseX * 0.88 + inwardX * 0.34) * force;
+	const dy = (clockwiseY * 0.88 + inwardY * 0.34) * force;
+	const color = generateColor();
+	const colorBoost = 6.5 + state.random() * 3.5;
+	color.r *= colorBoost;
+	color.g *= colorBoost;
+	color.b *= colorBoost;
+	splat(x, y, dx, dy, color);
+}
+
+function updateFluidTransition(now) {
+	const state = fluidTransition;
+	if (!state) return null;
+	state.progress = clamp01((now - state.startedAt) / state.duration);
+	const targetInjectedCount = getInjectedTransitionCount(
+		state.progress,
+		state.injectionCount,
+		state.timeline.surgeEnd
+	);
+	while (state.injectedCount < targetInjectedCount) {
+		injectTransitionSplat(state, state.injectedCount);
+		state.injectedCount += 1;
+	}
+
+	const phase = resolveFluidTransitionPhase(state.progress, state.timeline);
+	if (phase !== state.phase) {
+		state.phase = phase;
+		canvas.dataset.fluidTransitionPhase = phase;
+		invokeTransitionCallback(state.onPhaseChange, phase);
+	}
+	canvas.dataset.fluidTransitionProgress = state.progress.toFixed(4);
+	canvas.dataset.fluidTransitionInjectedCount = String(state.injectedCount);
+	invokeTransitionCallback(state.onProgress, state.progress);
+	return state;
+}
+
+function finishFluidTransition(state) {
+	if (!state || fluidTransition !== state || state.completed) return;
+	state.completed = true;
+	canvas.dataset.fluidTransitionState = 'done';
+	canvas.dataset.fluidTransitionPhase = 'done';
+	canvas.dataset.fluidTransitionProgress = '1.0000';
+	fluidTransition = null;
+	invokeTransitionCallback(state.onPhaseChange, 'done');
+	invokeTransitionCallback(state.onComplete);
+}
 
 const changeColor = () => {
 	const content = document.querySelector('.content-inner');
@@ -1010,6 +1211,9 @@ const initBackground = () => {
 	}
 	stopped = false
 	canvas.dataset.fluidRenderState = 'running'
+	canvas.dataset.fluidTransitionState = canvas.dataset.fluidTransitionState || 'idle'
+	canvas.dataset.fluidTransitionPhase = canvas.dataset.fluidTransitionPhase || 'idle'
+	canvas.dataset.fluidTransitionInjectedCount = canvas.dataset.fluidTransitionInjectedCount || '0'
 	changeColor()
 	updateKeywords();
 	initFramebuffers();
@@ -1032,6 +1236,46 @@ window.__stopWebglFluidBackground = () => {
 		animationID = null;
 	}
 	canvas.dataset.fluidRenderState = 'stopped'
+};
+
+window.__startWebglFluidTransition = (options = {}) => {
+	if (!initBackground.loaded || stopped || config.PAUSED) return null;
+	const duration = Math.max(600, Number(options.duration) || 2600);
+	const injectionCount = Math.max(1, Math.round(Number(options.injectionCount) || 10));
+	const timeline = Object.assign({}, defaultTransitionTimeline, options.timeline || {});
+	const state = {
+		startedAt: performance.now(),
+		duration,
+		injectionCount,
+		injectedCount: 0,
+		progress: 0,
+		phase: 'surge',
+		completed: false,
+		random: createSeededTransitionRandom((canvas.width * 73856093) ^ (canvas.height * 19349663) ^ injectionCount),
+		timeline,
+		onProgress: options.onProgress,
+		onPhaseChange: options.onPhaseChange,
+		onComplete: options.onComplete
+	};
+	fluidTransition = state;
+	canvas.dataset.fluidTransitionState = 'running';
+	canvas.dataset.fluidTransitionPhase = 'surge';
+	canvas.dataset.fluidTransitionProgress = '0.0000';
+	canvas.dataset.fluidTransitionInjectedCount = '0';
+	canvas.dataset.fluidTransitionInjectionCount = String(injectionCount);
+	invokeTransitionCallback(state.onPhaseChange, 'surge');
+	return {
+		duration,
+		injectionCount,
+		cancel() {
+			if (fluidTransition !== state) return;
+			fluidTransition = null;
+			canvas.dataset.fluidTransitionState = 'idle';
+			canvas.dataset.fluidTransitionPhase = 'idle';
+			canvas.dataset.fluidTransitionProgress = '0.0000';
+			canvas.dataset.fluidTransitionInjectedCount = '0';
+		}
+	};
 };
 
 document.addEventListener(visibilityChangeEvent, () => {
@@ -1057,11 +1301,14 @@ function update(first) {
 	const dt = calcDeltaTime();
 	if (resizeCanvas())
 		initFramebuffers();
+	const activeTransition = updateFluidTransition(performance.now());
 	updateColors(dt);
 	applyInputs();
 	if (!config.PAUSED)
-		step(dt);
+		step(dt, activeTransition);
 	render(null);
+	if (activeTransition && activeTransition.progress >= 1)
+		finishFluidTransition(activeTransition);
 	if (!stopped) animationID = requestAnimationFrame(update);
 }
 
@@ -1108,7 +1355,7 @@ function applyInputs() {
 	});
 }
 
-function step(dt) {
+function step(dt, activeTransition) {
 	gl.disable(gl.BLEND);
 	gl.viewport(0, 0, velocity.width, velocity.height);
 
@@ -1153,6 +1400,16 @@ function step(dt) {
 	blit(velocity.write.fbo);
 	velocity.swap();
 
+	if (activeTransition) {
+		transitionVelocityProgram.bind();
+		gl.uniform1i(transitionVelocityProgram.uniforms.uVelocity, velocity.read.attach(0));
+		gl.uniform1f(transitionVelocityProgram.uniforms.aspectRatio, canvas.width / Math.max(1, canvas.height));
+		gl.uniform1f(transitionVelocityProgram.uniforms.progress, activeTransition.progress);
+		gl.uniform1f(transitionVelocityProgram.uniforms.dt, dt);
+		blit(velocity.write.fbo);
+		velocity.swap();
+	}
+
 	advectionProgram.bind();
 	gl.uniform2f(advectionProgram.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
 	if (!ext.supportLinearFiltering)
@@ -1184,7 +1441,13 @@ function render(target) {
 		blur(sunrays, sunraysTemp, 1);
 	}
 
-	if (target == null || !config.TRANSPARENT) {
+	if (target == null && fluidTransition) {
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+		gl.clearColor(0.0, 0.0, 0.0, 0.0);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+		gl.disable(gl.BLEND);
+	}
+	else if (target == null || !config.TRANSPARENT) {
 		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 		gl.enable(gl.BLEND);
 	}
@@ -1197,9 +1460,9 @@ function render(target) {
 	gl.viewport(0, 0, width, height);
 
 	let fbo = target == null ? null : target.fbo;
-	if (!config.TRANSPARENT)
+	if (!config.TRANSPARENT && !fluidTransition)
 		drawColor(fbo, normalizeColor(config.BACK_COLOR));
-	if (target == null && config.TRANSPARENT)
+	if (target == null && config.TRANSPARENT && !fluidTransition)
 		drawCheckerboard(fbo);
 	drawDisplay(fbo, width, height);
 }
@@ -1229,6 +1492,16 @@ function drawDisplay(fbo, width, height) {
 	}
 	if (config.SUNRAYS)
 		gl.uniform1i(displayMaterial.uniforms.uSunrays, sunrays.attach(3));
+	const transitionBackground = normalizeColor(config.BACK_COLOR);
+	gl.uniform1f(displayMaterial.uniforms.transitionActive, fluidTransition ? 1 : 0);
+	gl.uniform1f(displayMaterial.uniforms.transitionProgress, fluidTransition ? fluidTransition.progress : 0);
+	gl.uniform1f(displayMaterial.uniforms.transitionAspectRatio, canvas.width / Math.max(1, canvas.height));
+	gl.uniform3f(
+		displayMaterial.uniforms.transitionBackground,
+		transitionBackground.r,
+		transitionBackground.g,
+		transitionBackground.b
+	);
 	blit(fbo);
 }
 
