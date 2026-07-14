@@ -513,8 +513,10 @@ export default function IntroOpeningHero() {
             data-fluid-config-source="simonaking-homepage"
             data-fluid-transition-state={fluidTransitionState}
             data-fluid-transition-phase={fluidTransitionPhase}
-            data-fluid-transition-model="random-surge-clockwise-avatar-sink"
-            data-fluid-transition-flow="continuous-inward-spiral"
+            data-fluid-transition-model="mixed-source-radius-aware-avatar-sink"
+            data-fluid-transition-flow="distance-aware-inward-spiral"
+            data-fluid-transition-distribution="edge-55-interior-45"
+            data-fluid-transition-reveal="fluid-density-board-handoff"
             data-fluid-transition-duration-ms={FLUID_TRANSITION_DURATION}
             data-fluid-transition-injection-count={getFluidInjectionCount(renderQuality)}
             data-fluid-transition-progress="0.0000"

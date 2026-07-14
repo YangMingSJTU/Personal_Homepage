@@ -382,13 +382,13 @@ const transitionVelocityShader = compileShader(gl.FRAGMENT_SHADER, `
         clockwise.x /= aspectRatio;
         radial.x /= aspectRatio;
 
-        float spiralProgress = smoothstep(0.0, 0.9, progress);
-        float distanceAttenuation = mix(1.0, 0.62, smoothstep(0.06, 1.35, distanceToCenter));
-        float outerBoost = smoothstep(0.08, 0.72, distanceToCenter);
-        float swirlStrength = mix(980.0, 420.0, spiralProgress);
-        float sinkStrength = mix(520.0, 1850.0, spiralProgress);
+        float spiralProgress = smoothstep(0.0, 0.92, progress);
+        float farZone = smoothstep(0.42, 1.08, distanceToCenter);
+        float centerDamping = smoothstep(0.035, 0.18, distanceToCenter);
+        float swirlStrength = mix(720.0, 300.0, spiralProgress) * mix(1.04, 0.66, farZone);
+        float sinkStrength = mix(740.0, 2050.0, spiralProgress) * mix(0.94, 1.22, farZone);
         vec2 force = clockwise * swirlStrength + (-radial) * sinkStrength;
-        force *= distanceAttenuation * mix(0.76, 1.08, outerBoost);
+        force *= centerDamping * mix(0.92, 1.08, farZone);
         velocity += force * dt;
 
         gl_FragColor = vec4(velocity, 0.0, 1.0);
@@ -494,22 +494,23 @@ const displayShaderSource = `
             vec2 physical = vec2(centered.x * transitionAspectRatio, centered.y);
             float distanceToCenter = length(physical);
             float angle = atan(physical.y, physical.x);
-            float materialReveal = smoothstep(0.12, 0.46, transitionProgress);
-            float shrink = smoothstep(0.18, 0.96, transitionProgress);
+            float materialReveal = smoothstep(0.1, 0.42, transitionProgress);
+            float densityReveal = smoothstep(0.12, 0.52, transitionProgress);
+            float guidedReveal = smoothstep(0.3, 0.94, transitionProgress);
+            float shrink = smoothstep(0.3, 0.98, transitionProgress);
             vec2 furthestAxis = vec2(
                 max(transitionCenter.x, 1.0 - transitionCenter.x) * transitionAspectRatio,
                 max(transitionCenter.y, 1.0 - transitionCenter.y)
             );
             float maximumRadius = length(furthestAxis) + 0.08;
             float radius = mix(maximumRadius, 0.0, shrink);
-            float ripple = sin(angle * 3.0 - transitionProgress * 13.0) * 0.018 * (1.0 - shrink);
-            float spatialMask = 1.0 - smoothstep(radius - 0.052, radius + 0.052, distanceToCenter + ripple);
-            float fluidAlpha = smoothstep(0.012, 0.12, a);
-            float absorption = smoothstep(0.7, 0.96, transitionProgress);
-            float centerGradient = 1.0 - smoothstep(radius * 0.16, max(radius, 0.001), distanceToCenter);
-            float absorptionMask = mix(1.0, pow(max(centerGradient, 0.0), 0.42), absorption);
-            float finalFade = 1.0 - smoothstep(0.92, 1.0, transitionProgress);
-            float alpha = mix(1.0, fluidAlpha, materialReveal) * spatialMask * absorptionMask * finalFade;
+            float ripple = sin(angle * 4.0 - transitionProgress * 10.0) * 0.012 * (1.0 - shrink);
+            float spatialMask = 1.0 - smoothstep(radius - 0.11, radius + 0.11, distanceToCenter + ripple);
+            float fluidPresence = smoothstep(0.008, 0.105, a);
+            float densityMask = mix(1.0, fluidPresence, densityReveal);
+            float guidedMask = mix(1.0, spatialMask, guidedReveal);
+            float finalFade = 1.0 - smoothstep(0.94, 1.0, transitionProgress);
+            float alpha = densityMask * guidedMask * finalFade;
             vec3 transitionColor = c + transitionBackground * (1.0 - materialReveal);
             gl_FragColor = vec4(transitionColor * alpha, alpha);
         }
@@ -1106,13 +1107,13 @@ function invokeTransitionCallback(callback, value) {
 }
 
 function injectTransitionSplat(state, index) {
-	const edgeCount = Math.ceil(state.injectionCount * 0.72);
+	const edgeCount = Math.round(state.injectionCount * 0.55);
 	let x;
 	let y;
 	if (index < edgeCount) {
 		const edge = index % 4;
-		const alongEdge = 0.08 + state.random() * 0.84;
-		const inset = 0.025 + state.random() * 0.055;
+		const alongEdge = 0.06 + state.random() * 0.88;
+		const inset = 0.055 + state.random() * 0.065;
 		if (edge === 0) {
 			x = alongEdge;
 			y = 1 - inset;
@@ -1153,9 +1154,12 @@ function injectTransitionSplat(state, index) {
 	const clockwiseY = -radialX;
 	const inwardX = -radialX / aspectRatio;
 	const inwardY = -radialY;
+	const farMix = clamp01((distance - 0.28) / 0.82);
+	const clockwiseWeight = 0.72 - farMix * 0.26;
+	const inwardWeight = 0.74 + farMix * 0.2;
 	const force = 860 + state.random() * 520;
-	const dx = (clockwiseX * 0.62 + inwardX * 0.78) * force;
-	const dy = (clockwiseY * 0.62 + inwardY * 0.78) * force;
+	const dx = (clockwiseX * clockwiseWeight + inwardX * inwardWeight) * force;
+	const dy = (clockwiseY * clockwiseWeight + inwardY * inwardWeight) * force;
 	const color = generateColor();
 	const colorBoost = 6.5 + state.random() * 3.5;
 	color.r *= colorBoost;
