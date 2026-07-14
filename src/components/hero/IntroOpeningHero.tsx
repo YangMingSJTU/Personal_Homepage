@@ -21,12 +21,14 @@ declare global {
   }
 }
 
-const fluidBaseConfig = {
-  TIME_SCALE: 0.5,
+const simonAKingFluidConfig = {
+  SIM_RESOLUTION: 128,
+  DYE_RESOLUTION: 1024,
   CAPTURE_RESOLUTION: 512,
   DENSITY_DISSIPATION: 1,
   VELOCITY_DISSIPATION: 0.2,
   PRESSURE: 0.8,
+  PRESSURE_ITERATIONS: 20,
   CURL: 30,
   SPLAT_RADIUS: 0.25,
   SPLAT_FORCE: 6000,
@@ -37,17 +39,20 @@ const fluidBaseConfig = {
   BACK_COLOR: { r: 30, g: 31, b: 33 },
   TRANSPARENT: false,
   BLOOM: true,
+  BLOOM_ITERATIONS: 8,
+  BLOOM_RESOLUTION: 256,
   BLOOM_INTENSITY: 0.4,
   BLOOM_THRESHOLD: 0.8,
   BLOOM_SOFT_KNEE: 0.7,
   SUNRAYS: true,
+  SUNRAYS_RESOLUTION: 196,
   SUNRAYS_WEIGHT: 1
 };
 
 function getFluidConfig(quality: RenderQuality) {
   return {
-    ...fluidBaseConfig,
-    ...getRenderProfile(quality).fluid
+    ...simonAKingFluidConfig,
+    PIXEL_RATIO_CAP: getRenderProfile(quality).fluid.PIXEL_RATIO_CAP
   };
 }
 
@@ -233,8 +238,9 @@ export default function IntroOpeningHero() {
         if (sourceFluid) sourceFluid.style.opacity = "";
         if (!fluidStoppedRef.current) window.__stopWebglFluidBackground?.();
         setHomeRenderPhase("main", renderQualityRef.current);
-        section.style.visibility = "hidden";
-        window.dispatchEvent(new Event("resize"));
+        window.requestAnimationFrame(() => {
+          section.style.visibility = "hidden";
+        });
       }
     });
     particleControllerRef.current = controller;
@@ -285,7 +291,6 @@ export default function IntroOpeningHero() {
     setTargetPointCount(0);
     window.__stopWebglFluidBackground?.();
     setHomeRenderPhase("main", renderQualityRef.current);
-    window.dispatchEvent(new Event("resize"));
   }, [runParticleMorph]);
 
   useEffect(() => {
@@ -459,7 +464,7 @@ export default function IntroOpeningHero() {
             data-visual="webgl-fluid-opening"
             data-webgl-fluid-background
             data-fluid-quality={renderQuality}
-            data-fluid-time-scale={fluidBaseConfig.TIME_SCALE}
+            data-fluid-config-source="simonaking-homepage"
           />
 
           <div className={`wrap fade${introLoaded ? " in" : ""}`}>
@@ -532,6 +537,8 @@ export default function IntroOpeningHero() {
         data-particle-path="tangent-continuous-axis-taiji-axis"
         data-particle-continuity="c1-tangent-matched"
         data-particle-orbit="continuous-slow-spin"
+        data-particle-primitive="segmented-streamline"
+        data-particle-endcap="none"
         data-particle-polarities="light-dark"
         data-particle-entry-axes="light-vertical-dark-horizontal"
         data-particle-exit-axes="opposite-axis-edges"

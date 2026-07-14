@@ -46,13 +46,13 @@ const renderProfiles: Record<RenderQuality, RenderProfile> = {
     goDprCap: 1.35,
     fluid: {
       PIXEL_RATIO_CAP: 1.5,
-      SIM_RESOLUTION: 96,
-      DYE_RESOLUTION: 768,
-      PRESSURE_ITERATIONS: 14,
-      BLOOM_ITERATIONS: 5,
-      BLOOM_RESOLUTION: 192,
-      SUNRAYS: false,
-      SUNRAYS_RESOLUTION: 128
+      SIM_RESOLUTION: 128,
+      DYE_RESOLUTION: 1024,
+      PRESSURE_ITERATIONS: 20,
+      BLOOM_ITERATIONS: 8,
+      BLOOM_RESOLUTION: 256,
+      SUNRAYS: true,
+      SUNRAYS_RESOLUTION: 196
     }
   },
   low: {
@@ -61,13 +61,13 @@ const renderProfiles: Record<RenderQuality, RenderProfile> = {
     goDprCap: 1.25,
     fluid: {
       PIXEL_RATIO_CAP: 1.25,
-      SIM_RESOLUTION: 64,
-      DYE_RESOLUTION: 384,
-      PRESSURE_ITERATIONS: 10,
-      BLOOM_ITERATIONS: 3,
-      BLOOM_RESOLUTION: 128,
-      SUNRAYS: false,
-      SUNRAYS_RESOLUTION: 96
+      SIM_RESOLUTION: 128,
+      DYE_RESOLUTION: 1024,
+      PRESSURE_ITERATIONS: 20,
+      BLOOM_ITERATIONS: 8,
+      BLOOM_RESOLUTION: 256,
+      SUNRAYS: true,
+      SUNRAYS_RESOLUTION: 196
     }
   }
 };

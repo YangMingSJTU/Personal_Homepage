@@ -32,8 +32,8 @@ type MorphParticle = {
   entryDelay: number;
   exitDelay: number;
   flowPhase: number;
+  tailColor: string;
   strokeColor: string;
-  glowColor: string;
   coreColor: string;
 };
 
@@ -283,8 +283,8 @@ function buildParticles(count: number, width: number, height: number) {
       entryDelay,
       exitDelay,
       flowPhase: ((index * 47) % 113) / 113 * Math.PI * 2,
+      tailColor: `rgba(${color.r}, ${color.g}, ${color.b}, 0.42)`,
       strokeColor: `rgba(${color.r}, ${color.g}, ${color.b}, 0.94)`,
-      glowColor: `rgba(${color.r}, ${color.g}, ${color.b}, 0.3)`,
       coreColor: `rgba(${Math.min(255, color.r + 28)}, ${Math.min(255, color.g + 28)}, ${Math.min(255, color.b + 28)}, 0.98)`
     };
   });
@@ -358,44 +358,49 @@ function drawParticle(context: CanvasRenderingContext2D, particle: MorphParticle
   const size = particle.size * (1 + rotationBoost * (0.28 + particle.depth * 0.18));
   const rotating = progress >= GATHER_END && progress <= ROTATION_END;
   const trailLength = rotating
-    ? size * (4 + particle.depth * 4)
-    : clamp(sample.speed * (0.006 + particle.depth * 0.004), size * 2.4, size * 9);
+    ? size * (5.5 + particle.depth * 5.5)
+    : clamp(sample.speed * (0.006 + particle.depth * 0.004), size * 3.2, size * 11);
+  const normal = { x: -sample.tangent.y, y: sample.tangent.x };
+  const bend = Math.sin(particle.flowPhase + progress * Math.PI * 4) * size * (0.35 + particle.depth * 0.7);
   const trailA = {
-    x: sample.point.x - sample.tangent.x * trailLength * 0.32,
-    y: sample.point.y - sample.tangent.y * trailLength * 0.32
+    x: sample.point.x - sample.tangent.x * trailLength * 0.32 + normal.x * bend * 0.25,
+    y: sample.point.y - sample.tangent.y * trailLength * 0.32 + normal.y * bend * 0.25
   };
   const trailB = {
-    x: sample.point.x - sample.tangent.x * trailLength * 0.67,
-    y: sample.point.y - sample.tangent.y * trailLength * 0.67
+    x: sample.point.x - sample.tangent.x * trailLength * 0.67 + normal.x * bend * 0.7,
+    y: sample.point.y - sample.tangent.y * trailLength * 0.67 + normal.y * bend * 0.7
   };
   const trailC = {
-    x: sample.point.x - sample.tangent.x * trailLength,
-    y: sample.point.y - sample.tangent.y * trailLength
+    x: sample.point.x - sample.tangent.x * trailLength + normal.x * bend * 0.2,
+    y: sample.point.y - sample.tangent.y * trailLength + normal.y * bend * 0.2
   };
 
   if (alpha <= 0.002) return;
 
-  context.globalAlpha = alpha * 0.56;
-  context.strokeStyle = particle.strokeColor;
-  context.lineWidth = Math.max(0.7, size * 0.54);
+  context.lineCap = "butt";
+  context.globalAlpha = alpha * 0.2;
+  context.strokeStyle = particle.tailColor;
+  context.lineWidth = Math.max(0.45, size * 0.28);
   context.beginPath();
   context.moveTo(trailC.x, trailC.y);
   context.lineTo(trailB.x, trailB.y);
-  context.lineTo(trailA.x, trailA.y);
-  context.lineTo(sample.point.x, sample.point.y);
   context.stroke();
 
-  context.globalAlpha = alpha * 0.2;
-  context.fillStyle = particle.glowColor;
+  context.globalAlpha = alpha * 0.46;
+  context.strokeStyle = particle.strokeColor;
+  context.lineWidth = Math.max(0.55, size * 0.4);
   context.beginPath();
-  context.arc(sample.point.x, sample.point.y, size * (2.5 + rotationBoost * 0.7), 0, Math.PI * 2);
-  context.fill();
+  context.moveTo(trailB.x, trailB.y);
+  context.lineTo(trailA.x, trailA.y);
+  context.stroke();
 
-  context.globalAlpha = alpha;
-  context.fillStyle = particle.coreColor;
+  context.globalAlpha = alpha * 0.82;
+  context.strokeStyle = particle.coreColor;
+  context.lineWidth = Math.max(0.65, size * 0.52);
   context.beginPath();
-  context.arc(sample.point.x, sample.point.y, size, 0, Math.PI * 2);
-  context.fill();
+  context.moveTo(trailA.x, trailA.y);
+  context.lineTo(sample.point.x, sample.point.y);
+  context.stroke();
 }
 
 function traceTaijiSeam(context: CanvasRenderingContext2D, radius: number) {

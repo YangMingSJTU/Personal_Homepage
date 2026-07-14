@@ -28,7 +28,6 @@ SOFTWARE.
 // Adapted for Personal_Homepage opening scene. Original MIT source:
 // Pavel Dobryakov WebGL Fluid Simulation, reused by SimonAKing/HomePage.
 const defaultFluidConfig = {
-	TIME_SCALE: 1,
 	PIXEL_RATIO_CAP: 1.5,
 	SIM_RESOLUTION: 128,
 	DYE_RESOLUTION: 1024,
@@ -1055,7 +1054,7 @@ function update(first) {
 		animationID = null
 		return
 	}
-	const dt = calcDeltaTime() * Math.max(0, config.TIME_SCALE ?? 1);
+	const dt = calcDeltaTime();
 	if (resizeCanvas())
 		initFramebuffers();
 	updateColors(dt);

@@ -47,12 +47,20 @@ describe("homepage render quality", () => {
     ).toBe("high");
   });
 
-  it("provides the planned particle and fluid budgets", () => {
+  it("scales particles while preserving the reference fluid appearance", () => {
     expect(getRenderProfile("high").particleCount).toBe(1600);
     expect(getRenderProfile("balanced").particleCount).toBe(1300);
-    expect(getRenderProfile("balanced").fluid.DYE_RESOLUTION).toBe(768);
     expect(getRenderProfile("low").particleCount).toBe(700);
-    expect(getRenderProfile("low").fluid.SIM_RESOLUTION).toBe(64);
-    expect(getRenderProfile("low").fluid.DYE_RESOLUTION).toBe(384);
+
+    for (const quality of ["high", "balanced", "low"] as const) {
+      const fluid = getRenderProfile(quality).fluid;
+      expect(fluid.SIM_RESOLUTION).toBe(128);
+      expect(fluid.DYE_RESOLUTION).toBe(1024);
+      expect(fluid.PRESSURE_ITERATIONS).toBe(20);
+      expect(fluid.BLOOM_ITERATIONS).toBe(8);
+      expect(fluid.BLOOM_RESOLUTION).toBe(256);
+      expect(fluid.SUNRAYS).toBe(true);
+      expect(fluid.SUNRAYS_RESOLUTION).toBe(196);
+    }
   });
 });

@@ -584,6 +584,7 @@ export default function InteractiveGoBackground() {
     container.dataset.renderFrameCount = "0";
     container.dataset.randomTimerState = "stopped";
     container.dataset.renderQuality = renderQualityRef.current;
+    container.dataset.handoffFrameReused = "false";
 
     const updateRenderState = (next: GoRenderState) => {
       if (renderStateRef.current === next) return;
@@ -789,13 +790,19 @@ export default function InteractiveGoBackground() {
       if (!resizeCanvas()) return;
       drawFrame(false);
       preparedRef.current = true;
+      container.dataset.handoffFrameReused = "false";
       updateRenderState("prepared");
     };
 
     const activateMain = () => {
       stopAnimation();
-      if (!preparedRef.current && !resizeCanvas()) return;
-      drawFrame(false);
+      if (!preparedRef.current) {
+        if (!resizeCanvas()) return;
+        drawFrame(false);
+        container.dataset.handoffFrameReused = "false";
+      } else {
+        container.dataset.handoffFrameReused = "true";
+      }
       preparedRef.current = true;
       updateRenderState("idle");
       startRandomTimer();

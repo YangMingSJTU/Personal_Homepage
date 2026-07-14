@@ -218,6 +218,8 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(particleFlow).toHaveAttribute("data-particle-path", "tangent-continuous-axis-taiji-axis");
   await expect(particleFlow).toHaveAttribute("data-particle-continuity", "c1-tangent-matched");
   await expect(particleFlow).toHaveAttribute("data-particle-orbit", "continuous-slow-spin");
+  await expect(particleFlow).toHaveAttribute("data-particle-primitive", "segmented-streamline");
+  await expect(particleFlow).toHaveAttribute("data-particle-endcap", "none");
   await expect(particleFlow).toHaveAttribute("data-particle-polarities", "light-dark");
   await expect(particleFlow).toHaveAttribute("data-particle-entry-axes", "light-vertical-dark-horizontal");
   await expect(particleFlow).toHaveAttribute("data-particle-exit-axes", "opposite-axis-edges");
@@ -244,7 +246,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
     )
     .toBe(true);
   await expect.poll(() => page.evaluate(() => typeof window.__stopWebglFluidBackground)).toBe("function");
-  await expect(hero.locator("#background")).toHaveAttribute("data-fluid-time-scale", "0.5");
+  await expect(hero.locator("#background")).toHaveAttribute("data-fluid-config-source", "simonaking-homepage");
   await expect(page.locator("[data-github-corner]")).toHaveAttribute("href", githubRepoHref);
   await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
   await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
@@ -280,6 +282,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect.poll(() => page.locator("html").getAttribute("data-home-render-phase")).toBe("handoff");
   await expect(hero.locator("#background")).toHaveAttribute("data-fluid-render-state", "stopped");
   await expect(goBackground).toHaveAttribute("data-render-state", "prepared");
+  const preparedFrameCount = await getNumericAttribute(goBackground, "data-render-frame-count");
   await waitForMainViewSettled(mainView);
   await expect(mainView).toHaveCSS("opacity", "1");
   await expect(mainView).toHaveCSS("z-index", "1");
@@ -287,6 +290,8 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(particleFlow).toHaveAttribute("data-particle-transition-phase", "done");
   await expect(particleFlow).toHaveAttribute("data-particle-count", "0");
   await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "main");
+  await expect(goBackground).toHaveAttribute("data-handoff-frame-reused", "true");
+  expect(await getNumericAttribute(goBackground, "data-render-frame-count")).toBe(preparedFrameCount);
   await expect(goBackground).toHaveAttribute("data-random-timer-state", "running");
   await expect.poll(() => profileCardInner.evaluate((element) => element.classList.contains("in"))).toBe(true);
   await expect(profileCard).toBeInViewport();
