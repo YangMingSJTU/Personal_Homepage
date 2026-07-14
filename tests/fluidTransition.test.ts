@@ -41,6 +41,8 @@ describe("fluid vortex transition", () => {
   it("reveals the single profile avatar monotonically without overshoot", () => {
     const samples = Array.from({ length: 21 }, (_, index) => resolveFluidAvatarOpacity(index / 20));
 
+    expect(FLUID_AVATAR_REVEAL_START).toBe(0.18);
+    expect(FLUID_AVATAR_REVEAL_END).toBe(0.4);
     expect(resolveFluidAvatarOpacity(FLUID_AVATAR_REVEAL_START)).toBe(0);
     expect(resolveFluidAvatarOpacity(FLUID_AVATAR_REVEAL_END)).toBe(1);
     expect(samples.every((value) => value >= 0 && value <= 1)).toBe(true);

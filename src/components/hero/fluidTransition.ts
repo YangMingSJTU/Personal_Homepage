@@ -3,8 +3,8 @@ import type { RenderQuality } from "@/components/hero/renderQuality";
 export type FluidTransitionPhase = "idle" | "surge" | "vortex" | "absorb" | "reveal" | "done";
 
 export const FLUID_TRANSITION_DURATION = 2600;
-export const FLUID_AVATAR_REVEAL_START = 0.12;
-export const FLUID_AVATAR_REVEAL_END = 0.3;
+export const FLUID_AVATAR_REVEAL_START = 0.18;
+export const FLUID_AVATAR_REVEAL_END = 0.4;
 export const FLUID_TRANSITION_TIMELINE = {
   surgeEnd: 0.22,
   vortexEnd: 0.56,

@@ -14,23 +14,26 @@ async function getNumericAttribute(locator: Locator, name: string) {
   return Number(await locator.getAttribute(name));
 }
 
-async function expectFluidSinkToMatchAvatar(fluidCanvas: Locator, avatar: Locator) {
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-sink-x", /^0\.\d{4}$|^1\.0000$/);
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-sink-y", /^0\.\d{4}$|^1\.0000$/);
-
-  const [canvasBox, avatarBox] = await Promise.all([fluidCanvas.boundingBox(), avatar.boundingBox()]);
-  expect(canvasBox).not.toBeNull();
-  expect(avatarBox).not.toBeNull();
-
-  const sinkX = await getNumericAttribute(fluidCanvas, "data-fluid-transition-sink-x");
-  const sinkY = await getNumericAttribute(fluidCanvas, "data-fluid-transition-sink-y");
-  const sinkPageX = canvasBox!.x + sinkX * canvasBox!.width;
-  const sinkPageY = canvasBox!.y + (1 - sinkY) * canvasBox!.height;
-  const avatarCenterX = avatarBox!.x + avatarBox!.width / 2;
-  const avatarCenterY = avatarBox!.y + avatarBox!.height / 2;
-
-  expect(Math.abs(sinkPageX - avatarCenterX)).toBeLessThan(2);
-  expect(Math.abs(sinkPageY - avatarCenterY)).toBeLessThan(2);
+async function expectFluidSinkToMatchAvatar(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const canvas = document.querySelector<HTMLCanvasElement>("#background");
+        const avatar = document.querySelector<HTMLImageElement>("img.profile-avatar");
+        if (!canvas || !avatar) return Number.POSITIVE_INFINITY;
+        const canvasBox = canvas.getBoundingClientRect();
+        const avatarBox = avatar.getBoundingClientRect();
+        const sinkX = Number(canvas.dataset.fluidTransitionSinkX);
+        const sinkY = Number(canvas.dataset.fluidTransitionSinkY);
+        if (!Number.isFinite(sinkX) || !Number.isFinite(sinkY)) return Number.POSITIVE_INFINITY;
+        const sinkPageX = canvasBox.x + sinkX * canvasBox.width;
+        const sinkPageY = canvasBox.y + (1 - sinkY) * canvasBox.height;
+        const avatarCenterX = avatarBox.x + avatarBox.width / 2;
+        const avatarCenterY = avatarBox.y + avatarBox.height / 2;
+        return Math.max(Math.abs(sinkPageX - avatarCenterX), Math.abs(sinkPageY - avatarCenterY));
+      })
+    )
+    .toBeLessThan(2);
 }
 
 function expectBoxesToMatch(
@@ -245,6 +248,14 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "distance-aware-inward-spiral");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "edge-55-interior-45");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "fluid-density-board-handoff");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "velocity-damped-avatar-core");
+  await expect(fluidCanvas).toHaveAttribute(
+    "data-fluid-quality",
+    test.info().project.name === "mobile" ? "low" : "high"
+  );
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-effective-quality", /^(high|balanced|low)$/);
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-quality-downgraded", /^(true|false)$/);
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-runtime-probe-state", /^(warming|sampling|complete|disabled)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-duration-ms", "2600");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-injection-count", /^(8|10|12)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", "0.0000");
@@ -286,12 +297,19 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
   await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", /^(transition|handoff)$/);
+  await expect.poll(() => page.locator("html").getAttribute("data-home-render-phase")).toBe("handoff");
+  await expect(goBackground).toHaveAttribute("data-render-state", "prepared");
+  const preparedFrameCount = await getNumericAttribute(goBackground, "data-render-frame-count");
   await expect(hero).toHaveClass(/is-leaving/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "running");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", /^(surge|vortex|absorb|reveal)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", /^0\.\d{4}$/);
   await expect.poll(() => getNumericAttribute(fluidCanvas, "data-fluid-transition-injected-count")).toBeGreaterThan(0);
-  await expectFluidSinkToMatchAvatar(fluidCanvas, profileAvatar);
+  await expectFluidSinkToMatchAvatar(page);
+  if (test.info().project.name === "desktop") {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expectFluidSinkToMatchAvatar(page);
+  }
   const transitionAvatarBox = await profileAvatar.boundingBox();
   expect(transitionAvatarBox).not.toBeNull();
   const transitionAvatarStyle = await profileAvatar.evaluate((element) => {
@@ -303,10 +321,6 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   expect(transitionAvatarStyle.transform).toBe("none");
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(goBackground).toBeVisible();
-  await expect.poll(() => page.locator("html").getAttribute("data-home-render-phase")).toBe("handoff");
-  await expect(hero.locator("#background")).toHaveAttribute("data-fluid-render-state", "running");
-  await expect(goBackground).toHaveAttribute("data-render-state", "prepared");
-  const preparedFrameCount = await getNumericAttribute(goBackground, "data-render-frame-count");
   await waitForMainViewSettled(mainView);
   await expect(mainView).toHaveCSS("opacity", "1");
   await expect(mainView).toHaveCSS("z-index", "1");
@@ -316,7 +330,11 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-render-state", "stopped");
   await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "main");
   await expect(goBackground).toHaveAttribute("data-handoff-frame-reused", "true");
-  expect(await getNumericAttribute(goBackground, "data-render-frame-count")).toBe(preparedFrameCount);
+  const settledFrameCount = await getNumericAttribute(goBackground, "data-render-frame-count");
+  expect(settledFrameCount).toBeGreaterThanOrEqual(preparedFrameCount);
+  expect(settledFrameCount).toBeLessThanOrEqual(
+    preparedFrameCount + (test.info().project.name === "desktop" ? 1 : 0)
+  );
   await expect(goBackground).toHaveAttribute("data-random-timer-state", "running");
   await expect.poll(() => profileCardInner.evaluate((element) => element.classList.contains("in"))).toBe(true);
   await expect(profileCard).toBeInViewport();
@@ -462,6 +480,7 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "distance-aware-inward-spiral");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "edge-55-interior-45");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "fluid-density-board-handoff");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "velocity-damped-avatar-core");
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();

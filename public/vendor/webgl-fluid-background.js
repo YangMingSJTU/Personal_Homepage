@@ -53,7 +53,13 @@ const defaultFluidConfig = {
 	BLOOM_SOFT_KNEE: 0.7,
 	SUNRAYS: true,
 	SUNRAYS_RESOLUTION: 196,
-	SUNRAYS_WEIGHT: 1
+	SUNRAYS_WEIGHT: 1,
+	RENDER_QUALITY: 'balanced',
+	RUNTIME_QUALITY_FALLBACK: null,
+	RUNTIME_QUALITY_WARMUP_FRAMES: 12,
+	RUNTIME_QUALITY_SAMPLE_FRAMES: 40,
+	RUNTIME_QUALITY_MEDIAN_THRESHOLD_MS: 24,
+	RUNTIME_QUALITY_P90_THRESHOLD_MS: 42
 };
 window.config = Object.assign({}, defaultFluidConfig, window.config || {});
 window.switchPage = window.switchPage || { switched: false };
@@ -385,6 +391,9 @@ const transitionVelocityShader = compileShader(gl.FRAGMENT_SHADER, `
         float spiralProgress = smoothstep(0.0, 0.92, progress);
         float farZone = smoothstep(0.42, 1.08, distanceToCenter);
         float centerDamping = smoothstep(0.035, 0.18, distanceToCenter);
+        float captureZone = 1.0 - smoothstep(0.045, 0.16, distanceToCenter);
+        float captureProgress = smoothstep(0.18, 0.88, progress);
+        velocity *= 1.0 - captureZone * captureProgress * 0.06;
         float swirlStrength = mix(720.0, 300.0, spiralProgress) * mix(1.04, 0.66, farZone);
         float sinkStrength = mix(740.0, 2050.0, spiralProgress) * mix(0.94, 1.22, farZone);
         vec2 force = clockwise * swirlStrength + (-radial) * sinkStrength;
@@ -493,23 +502,22 @@ const displayShaderSource = `
             vec2 centered = vUv - transitionCenter;
             vec2 physical = vec2(centered.x * transitionAspectRatio, centered.y);
             float distanceToCenter = length(physical);
-            float angle = atan(physical.y, physical.x);
             float materialReveal = smoothstep(0.1, 0.42, transitionProgress);
-            float densityReveal = smoothstep(0.12, 0.52, transitionProgress);
-            float guidedReveal = smoothstep(0.3, 0.94, transitionProgress);
-            float shrink = smoothstep(0.3, 0.98, transitionProgress);
+            float densityReveal = smoothstep(0.12, 0.62, transitionProgress);
+            float guidedReveal = smoothstep(0.85, 0.98, transitionProgress);
+            float shrink = smoothstep(0.82, 0.99, transitionProgress);
             vec2 furthestAxis = vec2(
                 max(transitionCenter.x, 1.0 - transitionCenter.x) * transitionAspectRatio,
                 max(transitionCenter.y, 1.0 - transitionCenter.y)
             );
             float maximumRadius = length(furthestAxis) + 0.08;
             float radius = mix(maximumRadius, 0.0, shrink);
-            float ripple = sin(angle * 4.0 - transitionProgress * 10.0) * 0.012 * (1.0 - shrink);
-            float spatialMask = 1.0 - smoothstep(radius - 0.11, radius + 0.11, distanceToCenter + ripple);
+            float spatialMask = 1.0 - smoothstep(radius - 0.18, radius + 0.18, distanceToCenter);
             float fluidPresence = smoothstep(0.008, 0.105, a);
             float densityMask = mix(1.0, fluidPresence, densityReveal);
-            float guidedMask = mix(1.0, spatialMask, guidedReveal);
-            float finalFade = 1.0 - smoothstep(0.94, 1.0, transitionProgress);
+            float safetyEnvelope = max(spatialMask, fluidPresence * 0.55);
+            float guidedMask = mix(1.0, safetyEnvelope, guidedReveal);
+            float finalFade = 1.0 - smoothstep(0.95, 1.0, transitionProgress);
             float alpha = densityMask * guidedMask * finalFade;
             vec3 transitionColor = c + transitionBackground * (1.0 - materialReveal);
             gl_FragColor = vec4(transitionColor * alpha, alpha);
@@ -896,8 +904,8 @@ function initFramebuffers() {
 	curl = createFBO(simRes.width, simRes.height, r.internalFormat, r.format, texType, gl.NEAREST);
 	pressure = createDoubleFBO(simRes.width, simRes.height, r.internalFormat, r.format, texType, gl.NEAREST);
 
-	initBloomFramebuffers();
-	initSunraysFramebuffers();
+	if (config.BLOOM) initBloomFramebuffers();
+	if (config.SUNRAYS) initSunraysFramebuffers();
 }
 
 function initBloomFramebuffers() {
@@ -1058,6 +1066,13 @@ function updateKeywords() {
 let lastUpdateTime = Date.now();
 let colorUpdateTimer = 0.0;
 let fluidTransition = null;
+const runtimeQualityProbe = {
+	downgraded: false,
+	evaluated: false,
+	frameCount: 0,
+	lastFrameAt: null,
+	samples: []
+};
 
 const defaultTransitionTimeline = {
 	surgeEnd: 0.22,
@@ -1072,6 +1087,22 @@ function clamp01(value) {
 function smoothProgress(value) {
 	const normalized = clamp01(value);
 	return normalized * normalized * (3 - 2 * normalized);
+}
+
+function normalizeTransitionSinkPoint(sinkPoint) {
+	const requestedX = Number(sinkPoint?.x);
+	const requestedY = Number(sinkPoint?.y);
+	return {
+		x: clamp01(Number.isFinite(requestedX) ? requestedX : 0.5),
+		y: clamp01(Number.isFinite(requestedY) ? requestedY : 0.5)
+	};
+}
+
+function updateTransitionSinkPoint(state, sinkPoint) {
+	if (!state || state.completed) return;
+	state.sinkPoint = normalizeTransitionSinkPoint(sinkPoint);
+	canvas.dataset.fluidTransitionSinkX = state.sinkPoint.x.toFixed(4);
+	canvas.dataset.fluidTransitionSinkY = state.sinkPoint.y.toFixed(4);
 }
 
 function createSeededTransitionRandom(seed) {
@@ -1194,6 +1225,58 @@ function updateFluidTransition(now) {
 	return state;
 }
 
+function percentile(values, percentileValue) {
+	const index = Math.min(values.length - 1, Math.ceil(values.length * percentileValue) - 1);
+	return values[Math.max(0, index)] || 0;
+}
+
+function applyRuntimeQualityFallback(median, p90) {
+	const fallback = config.RUNTIME_QUALITY_FALLBACK;
+	runtimeQualityProbe.evaluated = true;
+	canvas.dataset.fluidRuntimeMedianMs = median.toFixed(1);
+	canvas.dataset.fluidRuntimeP90Ms = p90.toFixed(1);
+	canvas.dataset.fluidRuntimeProbeState = 'complete';
+	if (!fallback || runtimeQualityProbe.downgraded) return;
+
+	const medianThreshold = Number(config.RUNTIME_QUALITY_MEDIAN_THRESHOLD_MS) || 24;
+	const p90Threshold = Number(config.RUNTIME_QUALITY_P90_THRESHOLD_MS) || 42;
+	if (median <= medianThreshold && p90 <= p90Threshold) return;
+
+	config.PRESSURE_ITERATIONS = Math.max(1, Number(fallback.PRESSURE_ITERATIONS) || config.PRESSURE_ITERATIONS);
+	config.BLOOM_ITERATIONS = Math.max(2, Number(fallback.BLOOM_ITERATIONS) || config.BLOOM_ITERATIONS);
+	config.SUNRAYS = fallback.SUNRAYS !== false;
+	runtimeQualityProbe.downgraded = true;
+	canvas.dataset.fluidEffectiveQuality = fallback.quality || 'low';
+	canvas.dataset.fluidQualityDowngraded = 'true';
+	updateKeywords();
+}
+
+function sampleRuntimeQuality(now) {
+	if (runtimeQualityProbe.evaluated || config.PAUSED || !config.RUNTIME_QUALITY_FALLBACK) return;
+	if (runtimeQualityProbe.lastFrameAt === null) {
+		runtimeQualityProbe.lastFrameAt = now;
+		return;
+	}
+
+	const frameDuration = now - runtimeQualityProbe.lastFrameAt;
+	runtimeQualityProbe.lastFrameAt = now;
+	if (fluidTransition || frameDuration <= 0 || frameDuration > 250) return;
+
+	const warmupFrames = Math.max(0, Number(config.RUNTIME_QUALITY_WARMUP_FRAMES) || 12);
+	if (runtimeQualityProbe.frameCount < warmupFrames) {
+		runtimeQualityProbe.frameCount += 1;
+		return;
+	}
+
+	const sampleFrames = Math.max(1, Number(config.RUNTIME_QUALITY_SAMPLE_FRAMES) || 40);
+	runtimeQualityProbe.samples.push(frameDuration);
+	canvas.dataset.fluidRuntimeProbeState = 'sampling';
+	if (runtimeQualityProbe.samples.length < sampleFrames) return;
+
+	const samples = runtimeQualityProbe.samples.slice(-sampleFrames).sort((left, right) => left - right);
+	applyRuntimeQualityFallback(percentile(samples, 0.5), percentile(samples, 0.9));
+}
+
 function finishFluidTransition(state) {
 	if (!state || fluidTransition !== state || state.completed) return;
 	state.completed = true;
@@ -1227,6 +1310,9 @@ const initBackground = () => {
 	canvas.dataset.fluidTransitionState = canvas.dataset.fluidTransitionState || 'idle'
 	canvas.dataset.fluidTransitionPhase = canvas.dataset.fluidTransitionPhase || 'idle'
 	canvas.dataset.fluidTransitionInjectedCount = canvas.dataset.fluidTransitionInjectedCount || '0'
+	canvas.dataset.fluidEffectiveQuality = config.RENDER_QUALITY || 'balanced'
+	canvas.dataset.fluidQualityDowngraded = 'false'
+	canvas.dataset.fluidRuntimeProbeState = config.RUNTIME_QUALITY_FALLBACK ? 'warming' : 'disabled'
 	changeColor()
 	updateKeywords();
 	initFramebuffers();
@@ -1255,12 +1341,7 @@ window.__startWebglFluidTransition = (options = {}) => {
 	if (!initBackground.loaded || stopped || config.PAUSED) return null;
 	const duration = Math.max(600, Number(options.duration) || 2600);
 	const injectionCount = Math.max(1, Math.round(Number(options.injectionCount) || 10));
-	const requestedSinkX = Number(options.sinkPoint?.x);
-	const requestedSinkY = Number(options.sinkPoint?.y);
-	const sinkPoint = {
-		x: clamp01(Number.isFinite(requestedSinkX) ? requestedSinkX : 0.5),
-		y: clamp01(Number.isFinite(requestedSinkY) ? requestedSinkY : 0.5)
-	};
+	const sinkPoint = normalizeTransitionSinkPoint(options.sinkPoint);
 	const timeline = Object.assign({}, defaultTransitionTimeline, options.timeline || {});
 	const state = {
 		startedAt: performance.now(),
@@ -1289,6 +1370,10 @@ window.__startWebglFluidTransition = (options = {}) => {
 	return {
 		duration,
 		injectionCount,
+		updateSinkPoint(sinkPoint) {
+			if (fluidTransition !== state) return;
+			updateTransitionSinkPoint(state, sinkPoint);
+		},
 		cancel() {
 			if (fluidTransition !== state) return;
 			fluidTransition = null;
@@ -1320,6 +1405,7 @@ function update(first) {
 		animationID = null
 		return
 	}
+	sampleRuntimeQuality(performance.now());
 	const dt = calcDeltaTime();
 	if (resizeCanvas())
 		initFramebuffers();
@@ -1538,7 +1624,11 @@ function drawDisplay(fbo, width, height) {
 }
 
 function applyBloom(source, destination) {
-	if (bloomFramebuffers.length < 2)
+	const framebufferCount = Math.min(
+		bloomFramebuffers.length,
+		Math.max(2, Math.round(Number(config.BLOOM_ITERATIONS) || bloomFramebuffers.length))
+	);
+	if (framebufferCount < 2)
 		return;
 
 	let last = destination;
@@ -1556,7 +1646,7 @@ function applyBloom(source, destination) {
 	blit(last.fbo);
 
 	bloomBlurProgram.bind();
-	for (let i = 0; i < bloomFramebuffers.length; i++) {
+	for (let i = 0; i < framebufferCount; i++) {
 		let dest = bloomFramebuffers[i];
 		gl.uniform2f(bloomBlurProgram.uniforms.texelSize, last.texelSizeX, last.texelSizeY);
 		gl.uniform1i(bloomBlurProgram.uniforms.uTexture, last.attach(0));
@@ -1568,7 +1658,7 @@ function applyBloom(source, destination) {
 	gl.blendFunc(gl.ONE, gl.ONE);
 	gl.enable(gl.BLEND);
 
-	for (let i = bloomFramebuffers.length - 2; i >= 0; i--) {
+	for (let i = framebufferCount - 2; i >= 0; i--) {
 		let baseTex = bloomFramebuffers[i];
 		gl.uniform2f(bloomBlurProgram.uniforms.texelSize, last.texelSizeX, last.texelSizeY);
 		gl.uniform1i(bloomBlurProgram.uniforms.uTexture, last.attach(0));

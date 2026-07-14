@@ -48,6 +48,7 @@ describe("style architecture", () => {
     expect(introHero).toContain('data-fluid-transition-flow="distance-aware-inward-spiral"');
     expect(introHero).toContain('data-fluid-transition-distribution="edge-55-interior-45"');
     expect(introHero).toContain('data-fluid-transition-reveal="fluid-density-board-handoff"');
+    expect(introHero).toContain('data-fluid-transition-capture="velocity-damped-avatar-core"');
     expect(introHero).not.toContain("data-fluid-transition-core");
     expect(introHero).not.toContain("avatarSrc");
     expect(indexPage).not.toContain("avatarSrc");
@@ -63,6 +64,10 @@ describe("style architecture", () => {
     expect(introHero).toContain("DYE_RESOLUTION: 1024");
     expect(introHero).toContain("BLOOM_ITERATIONS: 8");
     expect(introHero).toContain("SUNRAYS_RESOLUTION: 196");
+    expect(introHero).toContain("...getRenderProfile(quality).fluid");
+    expect(introHero).toContain("RUNTIME_QUALITY_FALLBACK: getRuntimeFluidFallback(quality)");
+    expect(introHero).toContain("updateSinkPoint: (sinkPoint");
+    expect(introHero).toContain('window.addEventListener("resize", scheduleSinkUpdate)');
     expect(introHero).not.toContain("TIME_SCALE");
     expect(introHero).not.toContain('dispatchEvent(new Event("resize"))');
     expect(introHero).toContain("getTransitionMilestones");
@@ -91,6 +96,8 @@ describe("style architecture", () => {
     expect(fluidTransition).toContain("resolveFluidTransitionProgress");
     expect(renderQuality).not.toContain("particleCount");
     expect(renderQuality).not.toContain("particleDprCap");
+    expect(renderQuality).toContain("FLUID_RUNTIME_WARMUP_FRAMES = 12");
+    expect(renderQuality).toContain("FLUID_RUNTIME_SAMPLE_FRAMES = 40");
     expect(goBackground).toContain("HOME_RENDER_PHASE_EVENT");
     expect(goBackground).toContain('data-render-state={renderState}');
     expect(goBackground).toContain("requestRenderRef");
@@ -109,9 +116,14 @@ describe("style architecture", () => {
     expect(fluidVendor).toContain("mix(720.0, 300.0, spiralProgress)");
     expect(fluidVendor).toContain("mix(740.0, 2050.0, spiralProgress)");
     expect(fluidVendor).toContain("centerDamping * mix(0.92, 1.08, farZone)");
+    expect(fluidVendor).toContain("captureZone * captureProgress * 0.06");
     expect(fluidVendor).toContain("clockwiseX * clockwiseWeight + inwardX * inwardWeight");
     expect(fluidVendor).toContain("float densityMask = mix(1.0, fluidPresence, densityReveal)");
-    expect(fluidVendor).toContain("float guidedMask = mix(1.0, spatialMask, guidedReveal)");
+    expect(fluidVendor).toContain("float safetyEnvelope = max(spatialMask, fluidPresence * 0.55)");
+    expect(fluidVendor).toContain("float guidedMask = mix(1.0, safetyEnvelope, guidedReveal)");
+    expect(fluidVendor).toContain("updateSinkPoint(sinkPoint)");
+    expect(fluidVendor).toContain("sampleRuntimeQuality(performance.now())");
+    expect(fluidVendor).toContain("canvas.dataset.fluidQualityDowngraded = 'true'");
     expect(introHero).not.toContain("data-shape-streak-primary");
     expect(introHero).not.toContain("data-shape-streak-secondary");
   });

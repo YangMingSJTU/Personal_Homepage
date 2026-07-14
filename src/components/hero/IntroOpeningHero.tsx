@@ -7,7 +7,12 @@ import {
   type FluidTransitionPhase
 } from "@/components/hero/fluidTransition";
 import {
+  FLUID_RUNTIME_MEDIAN_THRESHOLD_MS,
+  FLUID_RUNTIME_P90_THRESHOLD_MS,
+  FLUID_RUNTIME_SAMPLE_FRAMES,
+  FLUID_RUNTIME_WARMUP_FRAMES,
   getRenderProfile,
+  getRuntimeFluidFallback,
   resolveRenderQuality,
   type RenderQuality
 } from "@/components/hero/renderQuality";
@@ -42,6 +47,7 @@ type FluidTransitionController = {
   cancel: () => void;
   duration: number;
   injectionCount: number;
+  updateSinkPoint: (sinkPoint: FluidTransitionOptions["sinkPoint"]) => void;
 };
 
 const simonAKingFluidConfig = {
@@ -75,7 +81,13 @@ const simonAKingFluidConfig = {
 function getFluidConfig(quality: RenderQuality) {
   return {
     ...simonAKingFluidConfig,
-    PIXEL_RATIO_CAP: getRenderProfile(quality).fluid.PIXEL_RATIO_CAP
+    ...getRenderProfile(quality).fluid,
+    RENDER_QUALITY: quality,
+    RUNTIME_QUALITY_FALLBACK: getRuntimeFluidFallback(quality),
+    RUNTIME_QUALITY_WARMUP_FRAMES: FLUID_RUNTIME_WARMUP_FRAMES,
+    RUNTIME_QUALITY_SAMPLE_FRAMES: FLUID_RUNTIME_SAMPLE_FRAMES,
+    RUNTIME_QUALITY_MEDIAN_THRESHOLD_MS: FLUID_RUNTIME_MEDIAN_THRESHOLD_MS,
+    RUNTIME_QUALITY_P90_THRESHOLD_MS: FLUID_RUNTIME_P90_THRESHOLD_MS
   };
 }
 
@@ -201,32 +213,52 @@ export default function IntroOpeningHero() {
     }
 
     const profileAvatar = profileCard?.querySelector(".profile-avatar") as HTMLElement | null;
-    const sectionRect = section.getBoundingClientRect();
-    const fallbackTarget = {
-      x: sectionRect.left + sectionRect.width / 2,
-      y: sectionRect.top + sectionRect.height / 2
+    const resolveSinkPoint = (): FluidTransitionOptions["sinkPoint"] => {
+      const sectionRect = section.getBoundingClientRect();
+      const fallbackTarget = {
+        x: sectionRect.left + sectionRect.width / 2,
+        y: sectionRect.top + sectionRect.height / 2
+      };
+      const avatarRect = profileAvatar?.getBoundingClientRect();
+      const avatarTarget = avatarRect
+        ? {
+            x: avatarRect.left + avatarRect.width / 2,
+            y: avatarRect.top + avatarRect.height / 2
+          }
+        : fallbackTarget;
+      const fluidRect = sourceFluid?.getBoundingClientRect();
+      return fluidRect && fluidRect.width > 0 && fluidRect.height > 0
+        ? {
+            x: Math.min(1, Math.max(0, (avatarTarget.x - fluidRect.left) / fluidRect.width)),
+            y: Math.min(1, Math.max(0, 1 - (avatarTarget.y - fluidRect.top) / fluidRect.height))
+          }
+        : { x: 0.5, y: 0.5 };
     };
-    const avatarRect = profileAvatar?.getBoundingClientRect();
-    const avatarTarget = avatarRect
-      ? {
-          x: avatarRect.left + avatarRect.width / 2,
-          y: avatarRect.top + avatarRect.height / 2
-        }
-      : fallbackTarget;
-    const fluidRect = sourceFluid?.getBoundingClientRect();
-    const sinkPoint = fluidRect && fluidRect.width > 0 && fluidRect.height > 0
-      ? {
-          x: Math.min(1, Math.max(0, (avatarTarget.x - fluidRect.left) / fluidRect.width)),
-          y: Math.min(1, Math.max(0, 1 - (avatarTarget.y - fluidRect.top) / fluidRect.height))
-        }
-      : { x: 0.5, y: 0.5 };
+    let trackedController: FluidTransitionController | null = null;
+    let sinkUpdateFrame: number | null = null;
+    const updateTrackedSink = () => {
+      sinkUpdateFrame = null;
+      trackedController?.updateSinkPoint(resolveSinkPoint());
+    };
+    const scheduleSinkUpdate = () => {
+      if (sinkUpdateFrame !== null) return;
+      sinkUpdateFrame = window.requestAnimationFrame(updateTrackedSink);
+    };
+    const stopSinkTracking = () => {
+      if (sinkUpdateFrame !== null) window.cancelAnimationFrame(sinkUpdateFrame);
+      sinkUpdateFrame = null;
+      window.removeEventListener("resize", scheduleSinkUpdate);
+      window.removeEventListener("orientationchange", scheduleSinkUpdate);
+    };
+    window.addEventListener("resize", scheduleSinkUpdate);
+    window.addEventListener("orientationchange", scheduleSinkUpdate);
     setFluidTransitionState("running");
     setFluidTransitionPhase("surge");
     handoffPreparedRef.current = false;
     const controller = startTransition({
       duration: FLUID_TRANSITION_DURATION,
       injectionCount: getFluidInjectionCount(renderQualityRef.current),
-      sinkPoint,
+      sinkPoint: resolveSinkPoint(),
       timeline: FLUID_TRANSITION_TIMELINE,
       onPhaseChange: setFluidTransitionPhase,
       onProgress: (progress) => {
@@ -252,6 +284,8 @@ export default function IntroOpeningHero() {
         }
       },
       onComplete: () => {
+        stopSinkTracking();
+        fluidTransitionControllerRef.current = null;
         setFluidTransitionState("done");
         setFluidTransitionPhase("done");
         mainView.style.opacity = "";
@@ -282,6 +316,7 @@ export default function IntroOpeningHero() {
       }
     });
     if (!controller) {
+      stopSinkTracking();
       if (profileCard) {
         delete profileCard.dataset.fluidHandoff;
         profileCard.style.removeProperty("--fluid-avatar-opacity");
@@ -293,7 +328,14 @@ export default function IntroOpeningHero() {
       }
       return false;
     }
-    fluidTransitionControllerRef.current = controller;
+    trackedController = {
+      ...controller,
+      cancel() {
+        stopSinkTracking();
+        controller.cancel();
+      }
+    };
+    fluidTransitionControllerRef.current = trackedController;
     return true;
   }, [stopFluidTransition]);
 
@@ -510,6 +552,9 @@ export default function IntroOpeningHero() {
             data-visual="webgl-fluid-opening"
             data-webgl-fluid-background
             data-fluid-quality={renderQuality}
+            data-fluid-effective-quality={renderQuality}
+            data-fluid-quality-downgraded="false"
+            data-fluid-runtime-probe-state={renderQuality === "low" ? "disabled" : "warming"}
             data-fluid-config-source="simonaking-homepage"
             data-fluid-transition-state={fluidTransitionState}
             data-fluid-transition-phase={fluidTransitionPhase}
@@ -517,6 +562,7 @@ export default function IntroOpeningHero() {
             data-fluid-transition-flow="distance-aware-inward-spiral"
             data-fluid-transition-distribution="edge-55-interior-45"
             data-fluid-transition-reveal="fluid-density-board-handoff"
+            data-fluid-transition-capture="velocity-damped-avatar-core"
             data-fluid-transition-duration-ms={FLUID_TRANSITION_DURATION}
             data-fluid-transition-injection-count={getFluidInjectionCount(renderQuality)}
             data-fluid-transition-progress="0.0000"
