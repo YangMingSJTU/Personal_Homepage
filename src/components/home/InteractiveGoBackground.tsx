@@ -1,4 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { getRenderProfile, type RenderQuality } from "@/components/hero/renderQuality";
+import {
+  getDocumentRenderQuality,
+  getHomeRenderPhase,
+  HOME_RENDER_PHASE_EVENT,
+  type HomeRenderPhase,
+  type HomeRenderPhaseDetail
+} from "@/lib/homeRenderPhase";
 import {
   canPlaceStone,
   getCapturedOpponentKeys,
@@ -21,6 +29,15 @@ type HoverPoint = {
 
 type LastPlacement = "hit" | "miss" | "occupied" | "none";
 type PointerKind = "mouse" | "touch";
+type GoRenderState = "paused" | "prepared" | "active" | "idle";
+
+type GoPalette = {
+  gridColor: string;
+  gridShadow: string;
+  glowSecondary: string;
+  ripplePrimary: string;
+  rippleSecondary: string;
+};
 
 type PlacementEffect = {
   x: number;
@@ -40,6 +57,13 @@ const randomIntervalMs = 1100;
 const placementEffectMs = 1100;
 const captureEffectMs = 560;
 const stoneEntryMs = 260;
+const defaultPalette: GoPalette = {
+  gridColor: "rgba(0, 229, 255, 0.2)",
+  gridShadow: "rgba(0, 229, 255, 0.18)",
+  glowSecondary: "rgba(200, 169, 106, 0.11)",
+  ripplePrimary: "rgba(90, 235, 255, 0.72)",
+  rippleSecondary: "rgba(232, 196, 116, 0.54)"
+};
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -340,6 +364,14 @@ export default function InteractiveGoBackground() {
   const activePlacementEffectCountRef = useRef(0);
   const activeCaptureEffectCountRef = useRef(0);
   const animationRef = useRef<number | null>(null);
+  const randomTimerRef = useRef<number | null>(null);
+  const requestRenderRef = useRef<() => void>(() => undefined);
+  const homePhaseRef = useRef<HomeRenderPhase>("intro");
+  const renderQualityRef = useRef<RenderQuality>("balanced");
+  const renderStateRef = useRef<GoRenderState>("paused");
+  const renderFrameCountRef = useRef(0);
+  const preparedRef = useRef(false);
+  const paletteRef = useRef<GoPalette>(defaultPalette);
   const randomRef = useRef(createSeededRandom(20260629));
   const randomTickRef = useRef(0);
   const metricsRef = useRef({ width: 0, height: 0, cell: 48 });
@@ -369,6 +401,7 @@ export default function InteractiveGoBackground() {
   const [lastCapturedColor, setLastCapturedColor] = useState<StoneColor | "none">("none");
   const [lastPlacement, setLastPlacement] = useState<LastPlacement>("none");
   const [hoverPoint, setHoverPoint] = useState<HoverPoint>(null);
+  const [renderState, setRenderState] = useState<GoRenderState>("paused");
 
   const syncStoneCount = useCallback(() => {
     const stones = Array.from(stonesRef.current.values());
@@ -467,6 +500,7 @@ export default function InteractiveGoBackground() {
       }
       syncStoneCount();
       syncVisibleMetrics();
+      requestRenderRef.current();
       return true;
     },
     [syncStoneCount, syncVisibleMetrics]
@@ -474,6 +508,7 @@ export default function InteractiveGoBackground() {
 
   const tryPlaceStoneFromClientPoint = useCallback(
     (clientX: number, clientY: number, color: StoneColor, pointerKind: PointerKind) => {
+      if (homePhaseRef.current !== "main") return false;
       const canvas = canvasRef.current;
       if (!canvas) return false;
       const rect = canvas.getBoundingClientRect();
@@ -495,6 +530,7 @@ export default function InteractiveGoBackground() {
   );
 
   const handleMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (homePhaseRef.current !== "main") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -538,28 +574,64 @@ export default function InteractiveGoBackground() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return undefined;
+    const container = containerRef.current;
+    if (!canvas || !container) return undefined;
 
     const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     reducedMotionRef.current = reducedMotionQuery.matches;
+    homePhaseRef.current = getHomeRenderPhase();
+    renderQualityRef.current = getDocumentRenderQuality();
+    container.dataset.renderFrameCount = "0";
+    container.dataset.randomTimerState = "stopped";
+    container.dataset.renderQuality = renderQualityRef.current;
+
+    const updateRenderState = (next: GoRenderState) => {
+      if (renderStateRef.current === next) return;
+      renderStateRef.current = next;
+      setRenderState(next);
+    };
+
+    const stopAnimation = () => {
+      if (animationRef.current !== null) window.cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    };
+
+    const stopRandomTimer = () => {
+      if (randomTimerRef.current !== null) window.clearInterval(randomTimerRef.current);
+      randomTimerRef.current = null;
+      container.dataset.randomTimerState = "stopped";
+    };
+
+    const readPalette = () => {
+      paletteRef.current = {
+        gridColor: readCssVariable(container, "--go-grid", defaultPalette.gridColor),
+        gridShadow: readCssVariable(container, "--go-grid-shadow", defaultPalette.gridShadow),
+        glowSecondary: readCssVariable(container, "--go-glow-secondary", defaultPalette.glowSecondary),
+        ripplePrimary: readCssVariable(container, "--go-ripple-primary", defaultPalette.ripplePrimary),
+        rippleSecondary: readCssVariable(container, "--go-ripple-secondary", defaultPalette.rippleSecondary)
+      };
+    };
 
     const initializeStones = () => {
       if (stonesRef.current.size > 0) return;
       const metrics = metricsRef.current;
       const random = randomRef.current;
       const initialCount = reducedMotionRef.current ? 18 : 26;
+      const settledAt = Date.now() - stoneEntryMs;
       for (let i = 0; i < initialCount; i += 1) {
         const stone = pickRandomStone(metrics.width, metrics.height, metrics.cell, random);
         if (stonesRef.current.has(stoneKey(stone.x, stone.y))) continue;
-        stonesRef.current.set(stoneKey(stone.x, stone.y), stone);
+        stonesRef.current.set(stoneKey(stone.x, stone.y), { ...stone, createdAt: settledAt });
       }
       syncStoneCount();
       syncVisibleMetrics();
     };
 
-    const resize = () => {
+    const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      const profile = getRenderProfile(renderQualityRef.current);
+      const dpr = Math.min(window.devicePixelRatio || 1, profile.goDprCap);
       canvas.width = Math.floor(rect.width * dpr);
       canvas.height = Math.floor(rect.height * dpr);
       const context = canvas.getContext("2d");
@@ -568,38 +640,25 @@ export default function InteractiveGoBackground() {
       metricsRef.current.height = rect.height;
       metricsRef.current.cell = getCellSize(rect.width);
       setCellSize(metricsRef.current.cell);
+      readPalette();
       initializeStones();
+      return true;
     };
 
-    const draw = () => {
+    const drawFrame = (continueAnimation: boolean) => {
+      animationRef.current = null;
       const context = canvas.getContext("2d");
       if (!context) return;
 
       const wallTime = Date.now();
       const metrics = metricsRef.current;
       const cell = metrics.cell;
-      const container = containerRef.current;
-      container?.setAttribute("data-grid-angle", "0.0000");
-      const canvasHost = container ?? canvas;
-      const backgroundColor = readCssVariable(canvasHost, "--go-bg", "#08111c");
-      const gridColor = readCssVariable(canvasHost, "--go-grid", "rgba(0, 229, 255, 0.2)");
-      const gridShadow = readCssVariable(canvasHost, "--go-grid-shadow", "rgba(0, 229, 255, 0.18)");
-      const glowPrimary = readCssVariable(canvasHost, "--go-glow-primary", "rgba(0, 229, 255, 0.16)");
-      const glowSecondary = readCssVariable(canvasHost, "--go-glow-secondary", "rgba(200, 169, 106, 0.11)");
-      const ripplePrimary = readCssVariable(canvasHost, "--go-ripple-primary", "rgba(90, 235, 255, 0.72)");
-      const rippleSecondary = readCssVariable(canvasHost, "--go-ripple-secondary", "rgba(232, 196, 116, 0.54)");
-      const scanColor = readCssVariable(canvasHost, "--go-scan", "rgba(255, 255, 255, 0.025)");
-      const vignetteEdge = readCssVariable(canvasHost, "--go-vignette-edge", "rgba(0, 0, 0, 0.58)");
+      const palette = paletteRef.current;
+      container.setAttribute("data-grid-angle", "0.0000");
+      renderFrameCountRef.current += 1;
+      container.dataset.renderFrameCount = String(renderFrameCountRef.current);
 
       context.clearRect(0, 0, metrics.width, metrics.height);
-      context.fillStyle = backgroundColor;
-      context.fillRect(0, 0, metrics.width, metrics.height);
-
-      const backgroundGradient = context.createRadialGradient(metrics.width * 0.72, metrics.height * 0.16, 0, metrics.width * 0.72, metrics.height * 0.16, metrics.width * 0.58);
-      backgroundGradient.addColorStop(0, glowPrimary);
-      backgroundGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
-      context.fillStyle = backgroundGradient;
-      context.fillRect(0, 0, metrics.width, metrics.height);
 
       const bounds = getVisibleBounds(metrics.width, metrics.height, cell);
       syncVisibleMetrics(bounds);
@@ -618,9 +677,9 @@ export default function InteractiveGoBackground() {
 
       context.save();
       context.lineWidth = 1;
-      context.strokeStyle = gridColor;
-      context.shadowColor = gridShadow;
-      context.shadowBlur = 5;
+      context.strokeStyle = palette.gridColor;
+      context.shadowColor = palette.gridShadow;
+      context.shadowBlur = 3;
       context.beginPath();
       for (let gridX = bounds.minX; gridX <= bounds.maxX; gridX += 1) {
         drawDistortedGridLine(context, gridX, bounds.minY, gridX, bounds.maxY, activeEffects, metrics.width, metrics.height, cell, wallTime);
@@ -636,7 +695,7 @@ export default function InteractiveGoBackground() {
         for (let gridY = bounds.minY; gridY <= bounds.maxY; gridY += 6) {
           const screen = gridToScreen(gridX, gridY, metrics.width, metrics.height, cell);
           context.globalAlpha = 0.22;
-          context.fillStyle = glowSecondary;
+          context.fillStyle = palette.glowSecondary;
           context.beginPath();
           context.arc(screen.x, screen.y, 1.7, 0, Math.PI * 2);
           context.fill();
@@ -646,47 +705,68 @@ export default function InteractiveGoBackground() {
 
       activeEffects.forEach((effect) => {
         const screen = gridToScreen(effect.x, effect.y, metrics.width, metrics.height, cell);
-        drawPlacementEffect(context, effect, screen.x, screen.y, cell, wallTime, ripplePrimary, rippleSecondary, gridShadow);
+        drawPlacementEffect(
+          context,
+          effect,
+          screen.x,
+          screen.y,
+          cell,
+          wallTime,
+          palette.ripplePrimary,
+          palette.rippleSecondary,
+          palette.gridShadow
+        );
       });
 
       const stoneRadius = Math.min(18, cell * 0.34);
       activeCaptureEffects.forEach((effect) => {
         if (effect.x < bounds.minX || effect.x > bounds.maxX || effect.y < bounds.minY || effect.y > bounds.maxY) return;
         const screen = gridToScreen(effect.x, effect.y, metrics.width, metrics.height, cell);
-        drawCaptureEffect(context, effect, screen.x, screen.y, stoneRadius, cell, wallTime, ripplePrimary, rippleSecondary, gridShadow);
+        drawCaptureEffect(
+          context,
+          effect,
+          screen.x,
+          screen.y,
+          stoneRadius,
+          cell,
+          wallTime,
+          palette.ripplePrimary,
+          palette.rippleSecondary,
+          palette.gridShadow
+        );
       });
 
+      let hasEnteringStone = false;
       stonesRef.current.forEach((stone) => {
         if (stone.x < bounds.minX || stone.x > bounds.maxX || stone.y < bounds.minY || stone.y > bounds.maxY) return;
         const screen = gridToScreen(stone.x, stone.y, metrics.width, metrics.height, cell);
+        const stoneAge = wallTime - stone.createdAt;
+        if (!reducedMotionRef.current && stoneAge >= 0 && stoneAge < stoneEntryMs) hasEnteringStone = true;
         drawStone(context, stone, screen.x, screen.y, stoneRadius, getStoneScale(stone, wallTime, reducedMotionRef.current));
       });
 
-      context.save();
-      const vignette = context.createRadialGradient(metrics.width / 2, metrics.height / 2, metrics.width * 0.15, metrics.width / 2, metrics.height / 2, metrics.width * 0.72);
-      vignette.addColorStop(0, "rgba(0, 0, 0, 0.02)");
-      vignette.addColorStop(1, vignetteEdge);
-      context.fillStyle = vignette;
-      context.fillRect(0, 0, metrics.width, metrics.height);
-      context.restore();
-
-      context.save();
-      context.fillStyle = scanColor;
-      for (let y = 0; y < metrics.height; y += 7) {
-        context.fillRect(0, y, metrics.width, 1);
+      const hasActiveAnimation =
+        !reducedMotionRef.current &&
+        (activeEffects.length > 0 || activeCaptureEffects.length > 0 || hasEnteringStone);
+      if (continueAnimation && homePhaseRef.current === "main" && hasActiveAnimation && !document.hidden) {
+        updateRenderState("active");
+        animationRef.current = window.requestAnimationFrame(() => drawFrame(true));
+        return;
       }
-      context.restore();
 
-      animationRef.current = window.requestAnimationFrame(draw);
+      updateRenderState(homePhaseRef.current === "main" ? "idle" : "prepared");
     };
 
-    resize();
-    window.addEventListener("resize", resize);
-    animationRef.current = window.requestAnimationFrame(draw);
+    const requestRender = () => {
+      if (homePhaseRef.current !== "main" || document.hidden || animationRef.current !== null) return;
+      updateRenderState("active");
+      animationRef.current = window.requestAnimationFrame(() => drawFrame(true));
+    };
+    requestRenderRef.current = requestRender;
 
-    const randomTimer = reducedMotionRef.current
-      ? null
-      : window.setInterval(() => {
+    const startRandomTimer = () => {
+      if (reducedMotionRef.current || randomTimerRef.current !== null || homePhaseRef.current !== "main") return;
+      randomTimerRef.current = window.setInterval(() => {
           const metrics = metricsRef.current;
           const random = randomRef.current;
           const bounds = getVisibleBounds(metrics.width, metrics.height, metrics.cell);
@@ -701,17 +781,99 @@ export default function InteractiveGoBackground() {
             if (placeStone(stone.x, stone.y, stone.color, "random")) break;
           }
         }, randomIntervalMs);
+      container.dataset.randomTimerState = "running";
+    };
+
+    const prepareBackground = () => {
+      stopAnimation();
+      if (!resizeCanvas()) return;
+      drawFrame(false);
+      preparedRef.current = true;
+      updateRenderState("prepared");
+    };
+
+    const activateMain = () => {
+      stopAnimation();
+      if (!preparedRef.current && !resizeCanvas()) return;
+      drawFrame(false);
+      preparedRef.current = true;
+      updateRenderState("idle");
+      startRandomTimer();
+    };
+
+    const applyRenderPhase = (phase: HomeRenderPhase, quality: RenderQuality) => {
+      homePhaseRef.current = phase;
+      renderQualityRef.current = quality;
+      container.dataset.renderQuality = quality;
+
+      if (phase === "intro" || phase === "transition") {
+        stopAnimation();
+        stopRandomTimer();
+        preparedRef.current = false;
+        updateRenderState("paused");
+        return;
+      }
+      if (phase === "handoff") {
+        stopRandomTimer();
+        prepareBackground();
+        return;
+      }
+      activateMain();
+    };
+
+    const handleRenderPhase = (event: Event) => {
+      const detail = (event as CustomEvent<HomeRenderPhaseDetail>).detail;
+      if (!detail) return;
+      applyRenderPhase(detail.phase, detail.quality);
+    };
+
+    const handleResize = () => {
+      if (homePhaseRef.current !== "handoff" && homePhaseRef.current !== "main") return;
+      stopAnimation();
+      if (resizeCanvas()) drawFrame(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopAnimation();
+        stopRandomTimer();
+        if (homePhaseRef.current === "main") updateRenderState("idle");
+        return;
+      }
+      if (homePhaseRef.current === "main") activateMain();
+    };
 
     const handleReducedMotionChange = (event: MediaQueryListEvent) => {
       reducedMotionRef.current = event.matches;
+      if (event.matches) {
+        placementEffectsRef.current = [];
+        captureEffectsRef.current = [];
+        activePlacementEffectCountRef.current = 0;
+        activeCaptureEffectCountRef.current = 0;
+        setActivePlacementEffectCount(0);
+        setActiveCaptureEffectCount(0);
+        stopAnimation();
+        stopRandomTimer();
+        if (homePhaseRef.current === "main") drawFrame(false);
+        return;
+      }
+      if (homePhaseRef.current === "main") startRandomTimer();
     };
+
+    window.addEventListener(HOME_RENDER_PHASE_EVENT, handleRenderPhase);
+    window.addEventListener("resize", handleResize);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     reducedMotionQuery.addEventListener("change", handleReducedMotionChange);
+    applyRenderPhase(getHomeRenderPhase(), getDocumentRenderQuality());
 
     return () => {
-      window.removeEventListener("resize", resize);
+      window.removeEventListener(HOME_RENDER_PHASE_EVENT, handleRenderPhase);
+      window.removeEventListener("resize", handleResize);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       reducedMotionQuery.removeEventListener("change", handleReducedMotionChange);
-      if (animationRef.current) window.cancelAnimationFrame(animationRef.current);
-      if (randomTimer) window.clearInterval(randomTimer);
+      stopAnimation();
+      stopRandomTimer();
+      requestRenderRef.current = () => undefined;
     };
   }, [placeStone, syncStoneCount, syncVisibleMetrics]);
 
@@ -738,6 +900,7 @@ export default function InteractiveGoBackground() {
       data-last-placement={lastPlacement}
       data-cell-size={cellSize.toFixed(2)}
       data-grid-angle="0.0000"
+      data-render-state={renderState}
       data-hover-point={hoverPoint ? `${hoverPoint.x}:${hoverPoint.y}` : ""}
       aria-hidden="true"
     >

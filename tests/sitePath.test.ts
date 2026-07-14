@@ -5,8 +5,8 @@ describe("site path helpers", () => {
   it("prefixes internal root paths with the configured base", () => {
     expect(withBase("/projects", "/Personal_Homepage/")).toBe("/Personal_Homepage/projects");
     expect(withBase("/", "/Personal_Homepage/")).toBe("/Personal_Homepage/");
-    expect(withBase("images/avatar-holy-grail.png", "/Personal_Homepage/")).toBe(
-      "/Personal_Homepage/images/avatar-holy-grail.png"
+    expect(withBase("images/avatar-holy-grail.webp", "/Personal_Homepage/")).toBe(
+      "/Personal_Homepage/images/avatar-holy-grail.webp"
     );
   });
 

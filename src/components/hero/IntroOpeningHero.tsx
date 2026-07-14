@@ -3,7 +3,13 @@ import {
   startPptParticleMorph,
   type ParticleMorphPhase
 } from "@/components/hero/particleMorphTransition";
+import {
+  getRenderProfile,
+  resolveRenderQuality,
+  type RenderQuality
+} from "@/components/hero/renderQuality";
 import { introQuotes } from "@/data/introQuotes";
+import { getTransitionMilestones, setHomeRenderPhase } from "@/lib/homeRenderPhase";
 import { withBase } from "@/lib/sitePath";
 
 declare global {
@@ -15,14 +21,11 @@ declare global {
   }
 }
 
-const fluidConfig = {
-  SIM_RESOLUTION: 128,
-  DYE_RESOLUTION: 1024,
+const fluidBaseConfig = {
   CAPTURE_RESOLUTION: 512,
   DENSITY_DISSIPATION: 1,
   VELOCITY_DISSIPATION: 0.2,
   PRESSURE: 0.8,
-  PRESSURE_ITERATIONS: 20,
   CURL: 30,
   SPLAT_RADIUS: 0.25,
   SPLAT_FORCE: 6000,
@@ -33,15 +36,30 @@ const fluidConfig = {
   BACK_COLOR: { r: 30, g: 31, b: 33 },
   TRANSPARENT: false,
   BLOOM: true,
-  BLOOM_ITERATIONS: 8,
-  BLOOM_RESOLUTION: 256,
   BLOOM_INTENSITY: 0.4,
   BLOOM_THRESHOLD: 0.8,
   BLOOM_SOFT_KNEE: 0.7,
   SUNRAYS: true,
-  SUNRAYS_RESOLUTION: 196,
   SUNRAYS_WEIGHT: 1
 };
+
+function getFluidConfig(quality: RenderQuality) {
+  return {
+    ...fluidBaseConfig,
+    ...getRenderProfile(quality).fluid
+  };
+}
+
+function getCurrentRenderQuality() {
+  const navigatorWithMemory = navigator as Navigator & { deviceMemory?: number };
+  return resolveRenderQuality({
+    width: window.innerWidth,
+    height: window.innerHeight,
+    devicePixelRatio: window.devicePixelRatio || 1,
+    hardwareConcurrency: navigator.hardwareConcurrency,
+    deviceMemory: navigatorWithMemory.deviceMemory
+  });
+}
 
 const introTitle = "YangMing";
 const fluidScriptSrc = withBase("/vendor/webgl-fluid-background.js");
@@ -116,6 +134,9 @@ export default function IntroOpeningHero() {
   const particleControllerRef = useRef<ReturnType<typeof startPptParticleMorph> | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
+  const fluidStoppedRef = useRef(false);
+  const handoffPreparedRef = useRef(false);
+  const renderQualityRef = useRef<RenderQuality>("balanced");
   const [quoteState, setQuoteState] = useState<QuoteState>({
     active: introQuotes[0],
     outgoing: null,
@@ -127,6 +148,7 @@ export default function IntroOpeningHero() {
   const [particleCount, setParticleCount] = useState(0);
   const [sourcePointCount, setSourcePointCount] = useState(0);
   const [targetPointCount, setTargetPointCount] = useState(0);
+  const [renderQuality, setRenderQuality] = useState<RenderQuality>("balanced");
 
   const stopParticleMorph = useCallback(() => {
     particleControllerRef.current?.cancel();
@@ -149,10 +171,14 @@ export default function IntroOpeningHero() {
     }
     setParticleState("running");
     setParticlePhase("disintegrate");
+    fluidStoppedRef.current = false;
+    handoffPreparedRef.current = false;
     const controller = startPptParticleMorph({
       canvas,
+      quality: renderQualityRef.current,
       onPhaseChange: setParticlePhase,
       onProgress: (progress) => {
+        const milestones = getTransitionMilestones(progress);
         const sourceDeparture = smoothRange(0.02, 0.24, progress);
         const gridProgress = smoothRange(0.44, 0.6, progress);
         const cardProgress = smoothRange(0.48, 0.64, progress);
@@ -168,12 +194,20 @@ export default function IntroOpeningHero() {
         if (sourceFluid) {
           sourceFluid.style.opacity = (1 - smoothRange(0.08, 0.3, progress)).toFixed(4);
         }
+        if (!fluidStoppedRef.current && milestones.releaseFluid) {
+          fluidStoppedRef.current = true;
+          window.__stopWebglFluidBackground?.();
+          sourceFluid?.setAttribute("data-fluid-render-state", "stopped");
+        }
+        if (!handoffPreparedRef.current && milestones.prepareHandoff) {
+          handoffPreparedRef.current = true;
+          setHomeRenderPhase("handoff", renderQualityRef.current);
+        }
         mainView.style.opacity = gridProgress.toFixed(4);
         mainView.style.transform = `translate3d(0, ${((1 - gridProgress) * 2.5).toFixed(3)}vh, 0) scale(${(
           0.985 +
           gridProgress * 0.015
         ).toFixed(4)})`;
-        mainView.style.filter = `blur(${((1 - gridProgress) * 10).toFixed(2)}px)`;
 
         if (profileCardInner) {
           profileCardInner.style.opacity = cardProgress.toFixed(4);
@@ -189,7 +223,6 @@ export default function IntroOpeningHero() {
         setParticlePhase("done");
         mainView.style.opacity = "";
         mainView.style.transform = "";
-        mainView.style.filter = "";
         mainView.style.zIndex = "";
         if (profileCardInner) {
           profileCardInner.classList.add("in");
@@ -197,7 +230,8 @@ export default function IntroOpeningHero() {
           profileCardInner.style.transform = "";
         }
         if (sourceFluid) sourceFluid.style.opacity = "";
-        window.__stopWebglFluidBackground?.();
+        if (!fluidStoppedRef.current) window.__stopWebglFluidBackground?.();
+        setHomeRenderPhase("main", renderQualityRef.current);
         section.style.visibility = "hidden";
         window.dispatchEvent(new Event("resize"));
       }
@@ -219,9 +253,9 @@ export default function IntroOpeningHero() {
     if (mainView) {
       mainView.style.transform = "none";
       mainView.style.opacity = "0";
-      mainView.style.filter = "none";
       mainView.style.zIndex = "120";
     }
+    setHomeRenderPhase("transition", renderQualityRef.current);
     document.documentElement.dataset.mainView = "active";
     section?.classList.add("is-leaving");
 
@@ -233,7 +267,6 @@ export default function IntroOpeningHero() {
     if (mainView) {
       mainView.style.transform = "";
       mainView.style.opacity = "";
-      mainView.style.filter = "";
       mainView.style.zIndex = "";
     }
     if (profileCardInner) {
@@ -250,12 +283,19 @@ export default function IntroOpeningHero() {
     setSourcePointCount(0);
     setTargetPointCount(0);
     window.__stopWebglFluidBackground?.();
+    setHomeRenderPhase("main", renderQualityRef.current);
     window.dispatchEvent(new Event("resize"));
   }, [runParticleMorph]);
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const quality = getCurrentRenderQuality();
+    renderQualityRef.current = quality;
+    setRenderQuality(quality);
+    setHomeRenderPhase("intro", quality);
     leavingRef.current = false;
+    fluidStoppedRef.current = false;
+    handoffPreparedRef.current = false;
     document.documentElement.removeAttribute("data-main-view");
     const profileCardInner = document.querySelector(".profile-card-inner") as HTMLElement | null;
     profileCardInner?.classList.remove("in");
@@ -269,7 +309,6 @@ export default function IntroOpeningHero() {
     if (mainView) {
       mainView.style.opacity = "";
       mainView.style.transform = "";
-      mainView.style.filter = "";
       mainView.style.zIndex = "";
     }
     stopParticleMorph();
@@ -279,7 +318,7 @@ export default function IntroOpeningHero() {
     setSourcePointCount(0);
     setTargetPointCount(0);
     setQuoteState({ active: pickIntroQuote(), outgoing: null, phase: "waiting" });
-    window.config = { ...fluidConfig, PAUSED: reduceMotion };
+    window.config = { ...getFluidConfig(quality), PAUSED: reduceMotion };
     window.switchPage = { switched: false };
     const fadeTimer = window.setTimeout(() => setIntroLoaded(true), 0);
     const quoteTimers = new Set<number>();
@@ -349,6 +388,7 @@ export default function IntroOpeningHero() {
     section.style.visibility = "";
     const sourceContent = section.querySelector(".wrap") as HTMLElement | null;
     const sourceFluid = section.querySelector("#background") as HTMLCanvasElement | null;
+    sourceFluid?.setAttribute("data-fluid-render-state", reduceMotion ? "paused" : "loading");
     if (sourceContent) {
       sourceContent.style.opacity = "";
       sourceContent.style.transform = "";
@@ -409,6 +449,7 @@ export default function IntroOpeningHero() {
         aria-label="进入动画"
         data-motion-scene="intro-opening"
         data-transition-visual="ppt-particle-morph"
+        data-render-quality={renderQuality}
       >
         <div className="content-inner">
           <canvas
@@ -416,6 +457,7 @@ export default function IntroOpeningHero() {
             aria-label="进入动画背景"
             data-visual="webgl-fluid-opening"
             data-webgl-fluid-background
+            data-fluid-quality={renderQuality}
           />
 
           <div className={`wrap fade${introLoaded ? " in" : ""}`}>
@@ -481,7 +523,9 @@ export default function IntroOpeningHero() {
         data-particle-transition-phase={particlePhase}
         data-particle-transition-model="fullscreen-taiji-particle-wipe"
         data-particle-transition-duration-ms="2300"
-        data-particle-max-frame-step-ms="64"
+        data-particle-timeline="wall-clock"
+        data-render-quality={renderQuality}
+        data-particle-dpr-cap={getRenderProfile(renderQuality).particleDprCap}
         data-particle-target-order="main-view-behind-curtain"
         data-particle-path="axis-gather-rotate-axis-release"
         data-particle-polarities="light-dark"

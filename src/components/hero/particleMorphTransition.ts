@@ -1,3 +1,5 @@
+import { getRenderProfile, type RenderQuality } from "@/components/hero/renderQuality";
+
 export type ParticleMorphPhase = "disintegrate" | "stream" | "assemble" | "settle" | "done";
 export type ParticlePolarity = -1 | 1;
 export type ParticleFlowAxis = "vertical" | "horizontal";
@@ -29,12 +31,26 @@ type MorphParticle = {
   alpha: number;
   entryDelay: number;
   exitDelay: number;
-  trailStep: number;
+  strokeColor: string;
+  glowColor: string;
+  coreColor: string;
+};
+
+type PathSample = {
+  point: Point;
+  tangent: Point;
+  speed: number;
+};
+
+type EyeSprite = {
+  image: HTMLCanvasElement;
+  size: number;
 };
 
 type ParticleMorphOptions = {
   canvas: HTMLCanvasElement;
   duration?: number;
+  quality?: RenderQuality;
   onProgress?: (progress: number) => void;
   onPhaseChange?: (phase: ParticleMorphPhase) => void;
   onComplete?: () => void;
@@ -45,6 +61,8 @@ type ParticleMorphController = {
   particleCount: number;
   sourcePointCount: number;
   targetPointCount: number;
+  quality: RenderQuality;
+  dprCap: number;
 };
 
 const WHITE: RgbColor = { r: 238, g: 249, b: 255 };
@@ -88,6 +106,28 @@ function cubicPoint(start: Point, controlA: Point, controlB: Point, end: Point, 
   return {
     x: startWeight * start.x + controlAWeight * controlA.x + controlBWeight * controlB.x + endWeight * end.x,
     y: startWeight * start.y + controlAWeight * controlA.y + controlBWeight * controlB.y + endWeight * end.y
+  };
+}
+
+function cubicSample(start: Point, controlA: Point, controlB: Point, end: Point, progress: number): PathSample {
+  const point = cubicPoint(start, controlA, controlB, end, progress);
+  const inverse = 1 - progress;
+  const derivative = {
+    x:
+      3 * inverse * inverse * (controlA.x - start.x) +
+      6 * inverse * progress * (controlB.x - controlA.x) +
+      3 * progress * progress * (end.x - controlB.x),
+    y:
+      3 * inverse * inverse * (controlA.y - start.y) +
+      6 * inverse * progress * (controlB.y - controlA.y) +
+      3 * progress * progress * (end.y - controlB.y)
+  };
+  const speed = Math.max(0.001, Math.hypot(derivative.x, derivative.y));
+
+  return {
+    point,
+    tangent: { x: derivative.x / speed, y: derivative.y / speed },
+    speed
   };
 }
 
@@ -191,6 +231,9 @@ function buildParticles(count: number, width: number, height: number) {
     const exitLength = Math.max(1, Math.hypot(exitOffset.x, exitOffset.y));
     const exitTangent = { x: -exitOffset.y / exitLength, y: exitOffset.x / exitLength };
     const axis = getParticleAxis(polarity);
+    const color = polarity === 1
+      ? mixColor(CYAN, WHITE, 0.28 + depth * 0.42)
+      : mixColor(GRAPHITE_VIOLET, VIOLET, 0.16 + depth * 0.34);
 
     return {
       source,
@@ -230,15 +273,17 @@ function buildParticles(count: number, width: number, height: number) {
       alpha: 0.5 + depth * 0.42,
       entryDelay: (((index * 17) % 29) / 29) * 0.052,
       exitDelay: (((index * 13) % 31) / 31) * 0.065,
-      trailStep: 0.004 + depth * 0.006
+      strokeColor: `rgba(${color.r}, ${color.g}, ${color.b}, 0.94)`,
+      glowColor: `rgba(${color.r}, ${color.g}, ${color.b}, 0.3)`,
+      coreColor: `rgba(${Math.min(255, color.r + 28)}, ${Math.min(255, color.g + 28)}, ${Math.min(255, color.b + 28)}, 0.98)`
     };
   });
 }
 
-function pointOnTaijiPath(particle: MorphParticle, progress: number) {
+function sampleParticlePath(particle: MorphParticle, progress: number): PathSample {
   if (progress <= GATHER_END) {
     const local = easeInOutCubic(smoothstep(particle.entryDelay, GATHER_END, progress));
-    return cubicPoint(
+    return cubicSample(
       particle.source,
       particle.sourceControl,
       particle.entryControl,
@@ -250,16 +295,24 @@ function pointOnTaijiPath(particle: MorphParticle, progress: number) {
   if (progress <= ROTATION_END) {
     const rotationProgress = easeInOutCubic(smoothstep(GATHER_END, ROTATION_END, progress));
     const breathingScale = 1 + Math.sin(Math.PI * rotationProgress * 2) * (0.008 + particle.depth * 0.008);
-    return rotatePoint(
+    const point = rotatePoint(
       particle.taijiEntry,
       particle.taijiCenter,
       TAIJI_ROTATION * rotationProgress,
       breathingScale
     );
+    const offsetX = point.x - particle.taijiCenter.x;
+    const offsetY = point.y - particle.taijiCenter.y;
+    const speed = Math.max(0.001, Math.hypot(offsetX, offsetY));
+    return {
+      point,
+      tangent: { x: -offsetY / speed, y: offsetX / speed },
+      speed
+    };
   }
 
   const local = easeInOutCubic(smoothstep(ROTATION_END + particle.exitDelay, 0.98, progress));
-  return cubicPoint(
+  return cubicSample(
     particle.taijiExit,
     particle.exitControl,
     particle.axisExitControl,
@@ -269,44 +322,51 @@ function pointOnTaijiPath(particle: MorphParticle, progress: number) {
 }
 
 function drawParticle(context: CanvasRenderingContext2D, particle: MorphParticle, progress: number) {
-  const trailStep = progress >= GATHER_END && progress <= ROTATION_END
-    ? particle.trailStep * 0.03
-    : particle.trailStep;
-  const current = pointOnTaijiPath(particle, progress);
-  const trailA = pointOnTaijiPath(particle, Math.max(0, progress - trailStep));
-  const trailB = pointOnTaijiPath(particle, Math.max(0, progress - trailStep * 2.1));
-  const trailC = pointOnTaijiPath(particle, Math.max(0, progress - trailStep * 3.4));
-  const color = particle.polarity === 1
-    ? mixColor(CYAN, WHITE, 0.28 + particle.depth * 0.42)
-    : mixColor(GRAPHITE_VIOLET, VIOLET, 0.16 + particle.depth * 0.34);
+  const sample = sampleParticlePath(particle, progress);
   const fadeIn = smoothstep(particle.entryDelay, particle.entryDelay + 0.075, progress);
   const fadeOut = 1 - smoothstep(0.88 + particle.exitDelay * 0.3, 1, progress);
   const rotationBoost = smoothstep(0.24, 0.34, progress) * (1 - smoothstep(0.68, 0.8, progress));
   const alpha = particle.alpha * fadeIn * fadeOut;
   const size = particle.size * (1 + rotationBoost * (0.28 + particle.depth * 0.18));
+  const rotating = progress >= GATHER_END && progress <= ROTATION_END;
+  const trailLength = rotating
+    ? size * (2.4 + particle.depth * 2.2)
+    : clamp(sample.speed * (0.008 + particle.depth * 0.006), size * 2.2, size * 8.5);
+  const trailA = {
+    x: sample.point.x - sample.tangent.x * trailLength * 0.32,
+    y: sample.point.y - sample.tangent.y * trailLength * 0.32
+  };
+  const trailB = {
+    x: sample.point.x - sample.tangent.x * trailLength * 0.67,
+    y: sample.point.y - sample.tangent.y * trailLength * 0.67
+  };
+  const trailC = {
+    x: sample.point.x - sample.tangent.x * trailLength,
+    y: sample.point.y - sample.tangent.y * trailLength
+  };
 
   if (alpha <= 0.002) return;
 
   context.globalAlpha = alpha * 0.56;
-  context.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.94)`;
+  context.strokeStyle = particle.strokeColor;
   context.lineWidth = Math.max(0.7, size * 0.54);
   context.beginPath();
   context.moveTo(trailC.x, trailC.y);
   context.lineTo(trailB.x, trailB.y);
   context.lineTo(trailA.x, trailA.y);
-  context.lineTo(current.x, current.y);
+  context.lineTo(sample.point.x, sample.point.y);
   context.stroke();
 
   context.globalAlpha = alpha * 0.2;
-  context.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.3)`;
+  context.fillStyle = particle.glowColor;
   context.beginPath();
-  context.arc(current.x, current.y, size * (2.5 + rotationBoost * 0.7), 0, Math.PI * 2);
+  context.arc(sample.point.x, sample.point.y, size * (2.5 + rotationBoost * 0.7), 0, Math.PI * 2);
   context.fill();
 
   context.globalAlpha = alpha;
-  context.fillStyle = `rgba(${Math.min(255, color.r + 28)}, ${Math.min(255, color.g + 28)}, ${Math.min(255, color.b + 28)}, 0.98)`;
+  context.fillStyle = particle.coreColor;
   context.beginPath();
-  context.arc(current.x, current.y, size, 0, Math.PI * 2);
+  context.arc(sample.point.x, sample.point.y, size, 0, Math.PI * 2);
   context.fill();
 }
 
@@ -316,29 +376,49 @@ function traceTaijiSeam(context: CanvasRenderingContext2D, radius: number) {
   context.arc(0, radius / 2, radius / 2, -Math.PI / 2, (-Math.PI * 3) / 2, true);
 }
 
-function drawTransitionCurtain(context: CanvasRenderingContext2D, width: number, height: number, progress: number) {
+function createEyeSprite(color: RgbColor, eyeRadius: number): EyeSprite {
+  const size = Math.max(1, Math.ceil(eyeRadius * 3));
+  const image = document.createElement("canvas");
+  image.width = size;
+  image.height = size;
+  const context = image.getContext("2d");
+  if (context) {
+    const center = size / 2;
+    const glow = context.createRadialGradient(center, center, 0, center, center, center);
+    glow.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, 0.46)`);
+    glow.addColorStop(0.38, `rgba(${color.r}, ${color.g}, ${color.b}, 0.16)`);
+    glow.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+    context.fillStyle = glow;
+    context.fillRect(0, 0, size, size);
+  }
+  return { image, size };
+}
+
+function drawTransitionCurtain(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  progress: number,
+  gradient: CanvasGradient
+) {
   const coverage = smoothstep(0.11, GATHER_END, progress) * (1 - smoothstep(ROTATION_END, 0.95, progress));
   if (coverage <= 0) return;
 
-  const gradient = context.createRadialGradient(
-    width * 0.5,
-    height * 0.5,
-    0,
-    width * 0.5,
-    height * 0.5,
-    Math.hypot(width, height) * 0.62
-  );
-  gradient.addColorStop(0, `rgba(10, 18, 30, ${coverage})`);
-  gradient.addColorStop(0.7, `rgba(4, 10, 18, ${coverage})`);
-  gradient.addColorStop(1, `rgba(2, 7, 13, ${coverage})`);
   context.save();
   context.globalCompositeOperation = "source-over";
+  context.globalAlpha = coverage;
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
   context.restore();
 }
 
-function drawTaijiFlowField(context: CanvasRenderingContext2D, width: number, height: number, progress: number) {
+function drawTaijiFlowField(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  progress: number,
+  eyeSprites: [EyeSprite, EyeSprite]
+) {
   const intensity = smoothstep(0.17, GATHER_END, progress) * (1 - smoothstep(ROTATION_END, 0.88, progress));
   if (intensity <= 0) return;
 
@@ -367,19 +447,13 @@ function drawTaijiFlowField(context: CanvasRenderingContext2D, width: number, he
   context.stroke();
 
   const eyeRadius = radius * 0.115;
-  for (const eye of [
+  for (const [index, eye] of [
     { y: -radius / 2, color: CYAN },
     { y: radius / 2, color: VIOLET }
-  ]) {
-    const glow = context.createRadialGradient(0, eye.y, 0, 0, eye.y, eyeRadius * 1.5);
-    glow.addColorStop(0, `rgba(${eye.color.r}, ${eye.color.g}, ${eye.color.b}, ${0.46 * intensity})`);
-    glow.addColorStop(0.38, `rgba(${eye.color.r}, ${eye.color.g}, ${eye.color.b}, ${0.16 * intensity})`);
-    glow.addColorStop(1, `rgba(${eye.color.r}, ${eye.color.g}, ${eye.color.b}, 0)`);
-    context.globalAlpha = 1;
-    context.fillStyle = glow;
-    context.beginPath();
-    context.arc(0, eye.y, eyeRadius * 1.5, 0, Math.PI * 2);
-    context.fill();
+  ].entries()) {
+    const sprite = eyeSprites[index];
+    context.globalAlpha = intensity;
+    context.drawImage(sprite.image, -sprite.size / 2, eye.y - sprite.size / 2, sprite.size, sprite.size);
 
     context.globalAlpha = intensity * 0.34;
     context.fillStyle = `rgb(${eye.color.r} ${eye.color.g} ${eye.color.b})`;
@@ -405,9 +479,15 @@ export function resolveParticlePhase(progress: number): ParticleMorphPhase {
   return "done";
 }
 
+export function resolveParticleProgress(startedAt: number, now: number, duration: number) {
+  if (duration <= 0) return 1;
+  return clamp((now - startedAt) / duration, 0, 1);
+}
+
 export function startPptParticleMorph({
   canvas,
   duration = 2300,
+  quality = "balanced",
   onProgress,
   onPhaseChange,
   onComplete
@@ -416,28 +496,49 @@ export function startPptParticleMorph({
   if (!context) {
     onPhaseChange?.("done");
     onComplete?.();
-    return { cancel: () => undefined, particleCount: 0, sourcePointCount: 0, targetPointCount: 0 };
+    return {
+      cancel: () => undefined,
+      particleCount: 0,
+      sourcePointCount: 0,
+      targetPointCount: 0,
+      quality,
+      dprCap: getRenderProfile(quality).particleDprCap
+    };
   }
 
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(1, rect.width);
   const height = Math.max(1, rect.height);
-  const highResolutionViewport = width * height > 2_200_000;
-  const particleCount = width < 720 ? 900 : highResolutionViewport ? 1300 : 1600;
-  const dpr = Math.min(window.devicePixelRatio || 1, width < 720 ? 1.5 : 1.75);
+  const profile = getRenderProfile(quality);
+  const particleCount = profile.particleCount;
+  const dpr = Math.min(window.devicePixelRatio || 1, profile.particleDprCap);
   const particles = buildParticles(particleCount, width, height);
   let frameId: number | null = null;
   let cancelled = false;
   let lastPhase: ParticleMorphPhase | null = null;
-  let lastFrameAt = performance.now();
-  let elapsed = 0;
-  const maxFrameStep = 64;
+  let startedAt: number | null = null;
 
   canvas.width = Math.round(width * dpr);
   canvas.height = Math.round(height * dpr);
   context.setTransform(dpr, 0, 0, dpr, 0, 0);
   context.lineCap = "round";
   context.lineJoin = "round";
+  const curtainGradient = context.createRadialGradient(
+    width * 0.5,
+    height * 0.5,
+    0,
+    width * 0.5,
+    height * 0.5,
+    Math.hypot(width, height) * 0.62
+  );
+  curtainGradient.addColorStop(0, "rgb(10 18 30)");
+  curtainGradient.addColorStop(0.7, "rgb(4 10 18)");
+  curtainGradient.addColorStop(1, "rgb(2 7 13)");
+  const eyeRadius = getTaijiRadius(width, height) * 0.115;
+  const eyeSprites: [EyeSprite, EyeSprite] = [
+    createEyeSprite(CYAN, eyeRadius),
+    createEyeSprite(VIOLET, eyeRadius)
+  ];
 
   const clear = () => {
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -446,9 +547,8 @@ export function startPptParticleMorph({
 
   const drawFrame = (time: number) => {
     if (cancelled) return;
-    elapsed += clamp(time - lastFrameAt, 0, maxFrameStep);
-    lastFrameAt = time;
-    const progress = Math.min(1, elapsed / duration);
+    if (startedAt === null) startedAt = time;
+    const progress = resolveParticleProgress(startedAt, time, duration);
     const phase = resolveParticlePhase(progress);
     canvas.dataset.particleProgress = progress.toFixed(3);
 
@@ -459,9 +559,9 @@ export function startPptParticleMorph({
       onPhaseChange?.(phase);
     }
 
-    drawTransitionCurtain(context, width, height, progress);
+    drawTransitionCurtain(context, width, height, progress, curtainGradient);
     context.globalCompositeOperation = "screen";
-    drawTaijiFlowField(context, width, height, progress);
+    drawTaijiFlowField(context, width, height, progress, eyeSprites);
     for (const particle of particles) drawParticle(context, particle, progress);
     context.globalAlpha = 1;
     context.globalCompositeOperation = "source-over";
@@ -482,6 +582,8 @@ export function startPptParticleMorph({
     particleCount,
     sourcePointCount: particleCount,
     targetPointCount: particleCount,
+    quality,
+    dprCap: profile.particleDprCap,
     cancel: () => {
       cancelled = true;
       if (frameId !== null) window.cancelAnimationFrame(frameId);

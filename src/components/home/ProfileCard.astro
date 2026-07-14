@@ -22,7 +22,15 @@ const links = profile.links?.length
     <header>
       {
         profile.avatar?.src ? (
-          <img class="profile-avatar" src={withBase(profile.avatar.src)} width="112" height="112" alt={profile.avatar.alt || title} />
+          <img
+            class="profile-avatar"
+            src={withBase(profile.avatar.src)}
+            width="112"
+            height="112"
+            alt={profile.avatar.alt || title}
+            decoding="async"
+            fetchpriority="low"
+          />
         ) : (
           <div class="profile-avatar profile-avatar-fallback" aria-hidden="true">
             <span></span>

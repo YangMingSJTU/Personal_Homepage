@@ -24,9 +24,11 @@ Open `http://localhost:4321`.
 npm test
 npm run build
 npm run test:e2e
+npm run perf:homepage
 ```
 
 `npm run test:e2e` builds the static site and verifies it through Astro preview with Playwright.
+Run `npm run perf:homepage` while the preview server is active to report homepage FPS, frame-time percentiles, long tasks, and transition duration. Set `PERF_URL` to profile another local URL.
 
 ## Content Updates
 

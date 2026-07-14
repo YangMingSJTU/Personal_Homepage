@@ -93,7 +93,7 @@ async function placeStoneOnOpenCandidate(page: Page, background: Locator, candid
 const githubRepoHref = "https://github.com/YangMingSJTU/Personal_Homepage";
 const profileSignature = "Projects / About";
 const siteBase = "/Personal_Homepage";
-const profileAvatarSrc = `${siteBase}/images/avatar-holy-grail.png`;
+const profileAvatarSrc = `${siteBase}/images/avatar-holy-grail.webp`;
 
 function pagePath(path: string) {
   if (path === "/") return `${siteBase}/`;
@@ -111,6 +111,8 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.locator("body > header")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Products", exact: true })).toHaveCount(0);
   await expect(page.locator("html")).not.toHaveAttribute("data-main-view", "active");
+  await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "intro");
+  await expect(page.locator("html")).toHaveAttribute("data-render-quality", /^(high|balanced|low)$/);
   await expect(hero).toHaveAttribute("data-motion-scene", "intro-opening");
   await expect(hero).toHaveAttribute("data-transition-visual", "ppt-particle-morph");
   await expect(hero.locator(".content-inner > canvas#background[aria-label='进入动画背景']")).toHaveAttribute(
@@ -210,7 +212,8 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(particleFlow).toHaveAttribute("data-particle-transition-phase", "idle");
   await expect(particleFlow).toHaveAttribute("data-particle-transition-model", "fullscreen-taiji-particle-wipe");
   await expect(particleFlow).toHaveAttribute("data-particle-transition-duration-ms", "2300");
-  await expect(particleFlow).toHaveAttribute("data-particle-max-frame-step-ms", "64");
+  await expect(particleFlow).toHaveAttribute("data-particle-timeline", "wall-clock");
+  await expect(particleFlow).toHaveAttribute("data-render-quality", /^(high|balanced|low)$/);
   await expect(particleFlow).toHaveAttribute("data-particle-target-order", "main-view-behind-curtain");
   await expect(particleFlow).toHaveAttribute("data-particle-path", "axis-gather-rotate-axis-release");
   await expect(particleFlow).toHaveAttribute("data-particle-polarities", "light-dark");
@@ -246,6 +249,9 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(mainView).toHaveCSS("opacity", "0");
   await expect(mainView).toHaveCSS("pointer-events", "none");
   await expect(goBackground).not.toBeVisible();
+  await expect(goBackground).toHaveAttribute("data-render-state", "paused");
+  await expect(goBackground).toHaveAttribute("data-render-frame-count", "0");
+  await expect(goBackground).toHaveAttribute("data-random-timer-state", "stopped");
   await expect.poll(() => profileCardInner.evaluate((element) => element.classList.contains("in"))).toBe(false);
   await expect(page.locator("#main-view [data-scifi-go-background]")).toHaveCount(0);
   await expect(page.getByText("G.G. Lab")).toHaveCount(0);
@@ -255,6 +261,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
 
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
+  await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "transition");
   await expect(hero).toHaveClass(/is-leaving/);
   await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "running");
   await expect(particleFlow).toHaveAttribute(
@@ -266,18 +273,26 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(particleFlow).toHaveAttribute("data-particle-target-count", /^[1-9]\d*$/);
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(goBackground).toBeVisible();
+  await expect(goBackground).toHaveAttribute("data-render-state", "paused");
+  await expect.poll(() => page.locator("html").getAttribute("data-home-render-phase")).toBe("handoff");
+  await expect(hero.locator("#background")).toHaveAttribute("data-fluid-render-state", "stopped");
+  await expect(goBackground).toHaveAttribute("data-render-state", "prepared");
   await waitForMainViewSettled(mainView);
   await expect(mainView).toHaveCSS("opacity", "1");
   await expect(mainView).toHaveCSS("z-index", "1");
   await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "done");
   await expect(particleFlow).toHaveAttribute("data-particle-transition-phase", "done");
   await expect(particleFlow).toHaveAttribute("data-particle-count", "0");
+  await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "main");
+  await expect(goBackground).toHaveAttribute("data-random-timer-state", "running");
   await expect.poll(() => profileCardInner.evaluate((element) => element.classList.contains("in"))).toBe(true);
   await expect(profileCard).toBeInViewport();
   await expect(profileCard.getByRole("heading", { name: "Personal Homepage" })).toBeVisible();
   await expect(profileCard.getByText(profileSignature)).toBeVisible();
   await expect(profileCard.locator("img.profile-avatar")).toHaveAttribute("src", profileAvatarSrc);
   await expect(profileCard.locator("img.profile-avatar")).toHaveAttribute("alt", "Holy grail avatar");
+  await expect(profileCard.locator("img.profile-avatar")).toHaveAttribute("decoding", "async");
+  await expect(profileCard.locator("img.profile-avatar")).toHaveAttribute("fetchpriority", "low");
   await expect(profileCard.getByRole("link", { name: "Projects", exact: true })).toBeVisible();
   await expect(profileCard.getByRole("link", { name: "About", exact: true })).toBeVisible();
   await expect(profileCard.getByRole("link", { name: "Contact", exact: true })).toHaveCount(0);
@@ -296,9 +311,13 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await expect(hero.locator("canvas[aria-label='进入动画背景']")).toHaveAttribute("data-visual", "webgl-fluid-opening");
   await expect(hero.locator("canvas[aria-label='动态围棋棋盘']")).toHaveCount(0);
   await expect(page.locator("html")).not.toHaveAttribute("data-main-view", "active");
+  await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "intro");
   await expect(mainView).toHaveCSS("visibility", "hidden");
   await expect(background).not.toBeVisible();
-  await expect(background).toHaveAttribute("data-stone-count", /^[1-9]\d*$/);
+  await expect(background).toHaveAttribute("data-stone-count", "0");
+  await expect(background).toHaveAttribute("data-render-state", "paused");
+  await expect(background).toHaveAttribute("data-render-frame-count", "0");
+  await expect(background).toHaveAttribute("data-random-timer-state", "stopped");
   await expect(background).toHaveAttribute("data-grid-angle", "0.0000");
   await expect(background).toHaveAttribute("data-placement-effect-count", "0");
   await expect(background).toHaveAttribute("data-user-placement-effect-count", "0");
@@ -321,6 +340,7 @@ test("renders a static intro and go-backed main view for reduced motion users", 
 
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
+  await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "main");
   await expect(hero).toHaveClass(/is-leaving/);
   await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
   await expect(particleTransition).toHaveAttribute(
@@ -333,6 +353,9 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await expect(particleTransition).toHaveAttribute("data-particle-transition-phase", "done");
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(background).toBeVisible();
+  await expect(background).toHaveAttribute("data-stone-count", /^[1-9]\d*$/);
+  await expect(background).toHaveAttribute("data-render-state", "idle");
+  await expect(background).toHaveAttribute("data-random-timer-state", "stopped");
   await expect(page.locator("#main-view")).toBeInViewport();
   const canvas = background.locator("canvas[aria-label='交互围棋背景']");
   const center = await getCanvasCenter(canvas);
@@ -350,6 +373,10 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await expect(background).toHaveAttribute("data-active-placement-effect-count", "0");
   await expect(background).toHaveAttribute("data-capture-count", "0");
   await expect(background).toHaveAttribute("data-active-capture-effect-count", "0");
+  await expect(background).toHaveAttribute("data-render-state", "idle");
+  const settledFrameCount = await background.getAttribute("data-render-frame-count");
+  await page.waitForTimeout(300);
+  await expect(background).toHaveAttribute("data-render-frame-count", settledFrameCount || "");
 });
 
 test("enters the go-backed main view from the fluid opening", async ({ page }) => {

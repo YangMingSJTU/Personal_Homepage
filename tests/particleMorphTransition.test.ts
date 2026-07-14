@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   getParticleAxis,
   getTaijiPolarity,
-  resolveParticlePhase
+  resolveParticlePhase,
+  resolveParticleProgress
 } from "@/components/hero/particleMorphTransition";
 
 describe("particle morph phases", () => {
@@ -32,5 +33,12 @@ describe("particle morph phases", () => {
   it("assigns the light and dark flows to perpendicular viewport axes", () => {
     expect(getParticleAxis(1)).toBe("vertical");
     expect(getParticleAxis(-1)).toBe("horizontal");
+  });
+
+  it("uses wall-clock progress without stretching slow frames", () => {
+    expect(resolveParticleProgress(1000, 1000, 2300)).toBe(0);
+    expect(resolveParticleProgress(1000, 2150, 2300)).toBe(0.5);
+    expect(resolveParticleProgress(1000, 5000, 2300)).toBe(1);
+    expect(resolveParticleProgress(1000, 900, 2300)).toBe(0);
   });
 });

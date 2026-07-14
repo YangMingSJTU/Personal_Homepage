@@ -28,6 +28,7 @@ SOFTWARE.
 // Adapted for Personal_Homepage opening scene. Original MIT source:
 // Pavel Dobryakov WebGL Fluid Simulation, reused by SimonAKing/HomePage.
 const defaultFluidConfig = {
+	PIXEL_RATIO_CAP: 1.5,
 	SIM_RESOLUTION: 128,
 	DYE_RESOLUTION: 1024,
 	CAPTURE_RESOLUTION: 512,
@@ -95,7 +96,7 @@ pointers.push(new pointerPrototype());
 const { gl, ext } = getWebGLContext(canvas);
 
 if (isMobile()) {
-	config.DYE_RESOLUTION = 512;
+	config.DYE_RESOLUTION = Math.min(config.DYE_RESOLUTION, 512);
 }
 if (!ext.supportLinearFiltering) {
 	config.DYE_RESOLUTION = 512;
@@ -1002,6 +1003,13 @@ const initBackground = () => {
 		return
 	}
 	initBackground.loaded = true
+	if (window.switchPage?.switched) {
+		stopped = true
+		canvas.dataset.fluidRenderState = 'stopped'
+		return
+	}
+	stopped = false
+	canvas.dataset.fluidRenderState = 'running'
 	changeColor()
 	updateKeywords();
 	initFramebuffers();
@@ -1009,22 +1017,43 @@ const initBackground = () => {
 	update(true)
 }
 
-window.addEventListener(visibilityChangeEvent, initBackground)
 window.addEventListener('DOMContentLoaded', initBackground)
 let animationID = null
+let stopped = false
 
 if (document.readyState !== 'loading') {
 	window.requestAnimationFrame(initBackground);
 }
 
 window.__stopWebglFluidBackground = () => {
+	stopped = true
 	if (animationID) {
 		cancelAnimationFrame(animationID);
 		animationID = null;
 	}
+	canvas.dataset.fluidRenderState = 'stopped'
 };
 
+document.addEventListener(visibilityChangeEvent, () => {
+	if (document.hidden) {
+		if (animationID) cancelAnimationFrame(animationID)
+		animationID = null
+		if (!stopped) canvas.dataset.fluidRenderState = 'paused'
+		return
+	}
+
+	if (!stopped && initBackground.loaded && animationID === null) {
+		lastUpdateTime = Date.now()
+		canvas.dataset.fluidRenderState = 'running'
+		animationID = requestAnimationFrame(update)
+	}
+})
+
 function update(first) {
+	if (stopped || document.hidden) {
+		animationID = null
+		return
+	}
 	const dt = calcDeltaTime();
 	if (resizeCanvas())
 		initFramebuffers();
@@ -1033,7 +1062,7 @@ function update(first) {
 	if (!config.PAUSED)
 		step(dt);
 	render(null);
-	animationID = requestAnimationFrame(update);
+	if (!stopped) animationID = requestAnimationFrame(update);
 }
 
 function calcDeltaTime() {
@@ -1448,7 +1477,7 @@ function getTextureScale(texture, width, height) {
 }
 
 function scaleByPixelRatio(input) {
-	let pixelRatio = window.devicePixelRatio || 1;
+	let pixelRatio = Math.min(window.devicePixelRatio || 1, config.PIXEL_RATIO_CAP || 1.5);
 	return Math.floor(input * pixelRatio);
 }
 
