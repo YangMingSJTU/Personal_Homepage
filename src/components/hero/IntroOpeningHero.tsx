@@ -22,6 +22,7 @@ declare global {
 }
 
 const fluidBaseConfig = {
+  TIME_SCALE: 0.5,
   CAPTURE_RESOLUTION: 512,
   DENSITY_DISSIPATION: 1,
   VELOCITY_DISSIPATION: 0.2,
@@ -458,6 +459,7 @@ export default function IntroOpeningHero() {
             data-visual="webgl-fluid-opening"
             data-webgl-fluid-background
             data-fluid-quality={renderQuality}
+            data-fluid-time-scale={fluidBaseConfig.TIME_SCALE}
           />
 
           <div className={`wrap fade${introLoaded ? " in" : ""}`}>
@@ -522,16 +524,18 @@ export default function IntroOpeningHero() {
         data-particle-transition-state={particleState}
         data-particle-transition-phase={particlePhase}
         data-particle-transition-model="fullscreen-taiji-particle-wipe"
-        data-particle-transition-duration-ms="2300"
+        data-particle-transition-duration-ms="2800"
         data-particle-timeline="wall-clock"
         data-render-quality={renderQuality}
         data-particle-dpr-cap={getRenderProfile(renderQuality).particleDprCap}
         data-particle-target-order="main-view-behind-curtain"
-        data-particle-path="axis-gather-rotate-axis-release"
+        data-particle-path="tangent-continuous-axis-taiji-axis"
+        data-particle-continuity="c1-tangent-matched"
+        data-particle-orbit="continuous-slow-spin"
         data-particle-polarities="light-dark"
         data-particle-entry-axes="light-vertical-dark-horizontal"
         data-particle-exit-axes="opposite-axis-edges"
-        data-particle-rotation-degrees="540"
+        data-particle-rotation-degrees="108"
         data-particle-taiji-geometry="s-curve-dual-eyes"
         data-particle-coverage="viewport-diagonal"
         data-particle-count={particleCount}

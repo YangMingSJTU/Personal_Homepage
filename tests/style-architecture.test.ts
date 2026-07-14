@@ -47,11 +47,15 @@ describe("style architecture", () => {
     expect(introHero).toContain('data-particle-mapping="axis-streams-to-viewport-taiji"');
     expect(introHero).toContain('data-particle-transition-model="fullscreen-taiji-particle-wipe"');
     expect(introHero).toContain('data-particle-target-order="main-view-behind-curtain"');
-    expect(introHero).toContain('data-particle-path="axis-gather-rotate-axis-release"');
+    expect(introHero).toContain('data-particle-path="tangent-continuous-axis-taiji-axis"');
+    expect(introHero).toContain('data-particle-continuity="c1-tangent-matched"');
+    expect(introHero).toContain('data-particle-orbit="continuous-slow-spin"');
     expect(introHero).toContain('data-particle-polarities="light-dark"');
     expect(introHero).toContain('data-particle-entry-axes="light-vertical-dark-horizontal"');
     expect(introHero).toContain('data-particle-exit-axes="opposite-axis-edges"');
-    expect(introHero).toContain('data-particle-rotation-degrees="540"');
+    expect(introHero).toContain('data-particle-rotation-degrees="108"');
+    expect(introHero).toContain('data-fluid-time-scale={fluidBaseConfig.TIME_SCALE}');
+    expect(introHero).toContain("TIME_SCALE: 0.5");
     expect(introHero).toContain('data-particle-taiji-geometry="s-curve-dual-eyes"');
     expect(introHero).toContain('data-particle-coverage="viewport-diagonal"');
     expect(introHero).toContain('data-particle-timeline="wall-clock"');
@@ -80,7 +84,10 @@ describe("style architecture", () => {
     expect(particleMorph).toContain("sampleParticlePath");
     expect(particleMorph).toContain("drawTransitionCurtain");
     expect(particleMorph).toContain("drawTaijiFlowField");
-    expect(particleMorph).toContain("duration = 2300");
+    expect(particleMorph).toContain("duration = PARTICLE_TRANSITION_DURATION");
+    expect(particleMorph).toContain("entryTangentDistance");
+    expect(particleMorph).toContain("exitTangentDistance");
+    expect(particleMorph).toContain("resolveTaijiRotation");
     expect(particleMorph).toContain("resolveParticleProgress");
     expect(particleMorph).not.toContain("maxFrameStep");
     expect(particleMorph).toContain("profile.particleCount");
@@ -92,6 +99,7 @@ describe("style architecture", () => {
     expect(goBackground).toContain("requestRenderRef");
     expect(goBackground).not.toContain('readCssVariable(canvasHost, "--go-scan"');
     expect(fluidVendor).toContain("PIXEL_RATIO_CAP");
+    expect(fluidVendor).toContain("config.TIME_SCALE ?? 1");
     expect(fluidVendor).toContain("fluidRenderState");
     expect(effectsCss).toMatch(/\.intro-particle-morph\s*\{[^}]*mix-blend-mode:\s*normal;/s);
     expect(introHero).not.toContain("data-shape-streak-primary");

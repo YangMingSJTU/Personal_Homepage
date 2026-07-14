@@ -31,6 +31,7 @@ type MorphParticle = {
   alpha: number;
   entryDelay: number;
   exitDelay: number;
+  flowPhase: number;
   strokeColor: string;
   glowColor: string;
   coreColor: string;
@@ -71,9 +72,16 @@ const VIOLET: RgbColor = { r: 191, g: 111, b: 255 };
 const GRAPHITE_VIOLET: RgbColor = { r: 112, g: 105, b: 184 };
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const TAIJI_ENTRY_ANGLE = -Math.PI * 0.08;
-const TAIJI_ROTATION = Math.PI * 3;
-const GATHER_END = 0.3;
-const ROTATION_END = 0.68;
+const TAIJI_ROTATION = Math.PI * 0.6;
+const GATHER_END = 0.34;
+const ROTATION_END = 0.76;
+
+export const PARTICLE_TRANSITION_DURATION = 2800;
+export const PARTICLE_TRANSITION_TIMELINE = {
+  gatherEnd: GATHER_END,
+  rotationEnd: ROTATION_END,
+  rotationDegrees: 108
+} as const;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -82,10 +90,6 @@ function clamp(value: number, minimum: number, maximum: number) {
 function smoothstep(edgeStart: number, edgeEnd: number, value: number) {
   const normalized = clamp((value - edgeStart) / (edgeEnd - edgeStart), 0, 1);
   return normalized * normalized * (3 - 2 * normalized);
-}
-
-function easeInOutCubic(value: number) {
-  return value < 0.5 ? 4 * value * value * value : 1 - Math.pow(-2 * value + 2, 3) / 2;
 }
 
 function mixColor(source: RgbColor, target: RgbColor, progress: number) {
@@ -231,6 +235,11 @@ function buildParticles(count: number, width: number, height: number) {
     const exitLength = Math.max(1, Math.hypot(exitOffset.x, exitOffset.y));
     const exitTangent = { x: -exitOffset.y / exitLength, y: exitOffset.x / exitLength };
     const axis = getParticleAxis(polarity);
+    const entryDelay = (((index * 17) % 29) / 29) * 0.052;
+    const exitDelay = (((index * 13) % 31) / 31) * 0.065;
+    const orbitAngularRate = TAIJI_ROTATION / (ROTATION_END - GATHER_END);
+    const entryTangentDistance = entryLength * orbitAngularRate * (GATHER_END - entryDelay) / 3;
+    const exitTangentDistance = exitLength * orbitAngularRate * (1 - ROTATION_END) / 3;
     const color = polarity === 1
       ? mixColor(CYAN, WHITE, 0.28 + depth * 0.42)
       : mixColor(GRAPHITE_VIOLET, VIOLET, 0.16 + depth * 0.34);
@@ -247,15 +256,15 @@ function buildParticles(count: number, width: number, height: number) {
             y: source.y + entryTangent.y * taiji.radius * 0.09
           },
       entryControl: {
-        x: taiji.entry.x - entryTangent.x * taiji.radius * (0.12 + depth * 0.035),
-        y: taiji.entry.y - entryTangent.y * taiji.radius * (0.12 + depth * 0.035)
+        x: taiji.entry.x - entryTangent.x * entryTangentDistance,
+        y: taiji.entry.y - entryTangent.y * entryTangentDistance
       },
       taijiEntry: taiji.entry,
       taijiExit: taiji.exit,
       taijiCenter: taiji.center,
       exitControl: {
-        x: taiji.exit.x + exitTangent.x * taiji.radius * (0.13 + depth * 0.04),
-        y: taiji.exit.y + exitTangent.y * taiji.radius * (0.13 + depth * 0.04)
+        x: taiji.exit.x + exitTangent.x * exitTangentDistance,
+        y: taiji.exit.y + exitTangent.y * exitTangentDistance
       },
       axisExitControl: axis === "vertical"
         ? {
@@ -271,8 +280,9 @@ function buildParticles(count: number, width: number, height: number) {
       depth,
       size: 0.85 + depth * 1.9 + (index % 29 === 0 ? 0.9 : 0),
       alpha: 0.5 + depth * 0.42,
-      entryDelay: (((index * 17) % 29) / 29) * 0.052,
-      exitDelay: (((index * 13) % 31) / 31) * 0.065,
+      entryDelay,
+      exitDelay,
+      flowPhase: ((index * 47) % 113) / 113 * Math.PI * 2,
       strokeColor: `rgba(${color.r}, ${color.g}, ${color.b}, 0.94)`,
       glowColor: `rgba(${color.r}, ${color.g}, ${color.b}, 0.3)`,
       coreColor: `rgba(${Math.min(255, color.r + 28)}, ${Math.min(255, color.g + 28)}, ${Math.min(255, color.b + 28)}, 0.98)`
@@ -280,58 +290,76 @@ function buildParticles(count: number, width: number, height: number) {
   });
 }
 
+export function resolveTaijiRotation(progress: number) {
+  const local = clamp((progress - GATHER_END) / (ROTATION_END - GATHER_END), 0, 1);
+  return TAIJI_ROTATION * local;
+}
+
 function sampleParticlePath(particle: MorphParticle, progress: number): PathSample {
   if (progress <= GATHER_END) {
-    const local = easeInOutCubic(smoothstep(particle.entryDelay, GATHER_END, progress));
-    return cubicSample(
+    const gatherDuration = GATHER_END - particle.entryDelay;
+    const local = clamp((progress - particle.entryDelay) / gatherDuration, 0, 1);
+    const sample = cubicSample(
       particle.source,
       particle.sourceControl,
       particle.entryControl,
       particle.taijiEntry,
       local
     );
+    return { ...sample, speed: sample.speed / gatherDuration };
   }
 
   if (progress <= ROTATION_END) {
-    const rotationProgress = easeInOutCubic(smoothstep(GATHER_END, ROTATION_END, progress));
-    const breathingScale = 1 + Math.sin(Math.PI * rotationProgress * 2) * (0.008 + particle.depth * 0.008);
+    const rotationProgress = clamp((progress - GATHER_END) / (ROTATION_END - GATHER_END), 0, 1);
+    const currentEnvelope = Math.pow(Math.sin(Math.PI * rotationProgress), 2);
+    const currentAngle =
+      Math.sin(particle.flowPhase + rotationProgress * Math.PI * 3) *
+      currentEnvelope *
+      (0.008 + particle.depth * 0.006);
+    const breathingScale =
+      1 +
+      Math.sin(particle.flowPhase * 1.7 + rotationProgress * Math.PI * 4) *
+        currentEnvelope *
+        (0.004 + particle.depth * 0.004);
     const point = rotatePoint(
       particle.taijiEntry,
       particle.taijiCenter,
-      TAIJI_ROTATION * rotationProgress,
+      resolveTaijiRotation(progress) + currentAngle,
       breathingScale
     );
     const offsetX = point.x - particle.taijiCenter.x;
     const offsetY = point.y - particle.taijiCenter.y;
-    const speed = Math.max(0.001, Math.hypot(offsetX, offsetY));
+    const radius = Math.max(0.001, Math.hypot(offsetX, offsetY));
     return {
       point,
-      tangent: { x: -offsetY / speed, y: offsetX / speed },
-      speed
+      tangent: { x: -offsetY / radius, y: offsetX / radius },
+      speed: radius * TAIJI_ROTATION / (ROTATION_END - GATHER_END)
     };
   }
 
-  const local = easeInOutCubic(smoothstep(ROTATION_END + particle.exitDelay, 0.98, progress));
-  return cubicSample(
+  const releaseDuration = 1 - ROTATION_END;
+  const local = clamp((progress - ROTATION_END) / releaseDuration, 0, 1);
+  const sample = cubicSample(
     particle.taijiExit,
     particle.exitControl,
     particle.axisExitControl,
     particle.axisExit,
     local
   );
+  return { ...sample, speed: sample.speed / releaseDuration };
 }
 
 function drawParticle(context: CanvasRenderingContext2D, particle: MorphParticle, progress: number) {
   const sample = sampleParticlePath(particle, progress);
   const fadeIn = smoothstep(particle.entryDelay, particle.entryDelay + 0.075, progress);
   const fadeOut = 1 - smoothstep(0.88 + particle.exitDelay * 0.3, 1, progress);
-  const rotationBoost = smoothstep(0.24, 0.34, progress) * (1 - smoothstep(0.68, 0.8, progress));
+  const rotationBoost = smoothstep(0.26, GATHER_END, progress) * (1 - smoothstep(ROTATION_END, 0.84, progress));
   const alpha = particle.alpha * fadeIn * fadeOut;
   const size = particle.size * (1 + rotationBoost * (0.28 + particle.depth * 0.18));
   const rotating = progress >= GATHER_END && progress <= ROTATION_END;
   const trailLength = rotating
-    ? size * (2.4 + particle.depth * 2.2)
-    : clamp(sample.speed * (0.008 + particle.depth * 0.006), size * 2.2, size * 8.5);
+    ? size * (4 + particle.depth * 4)
+    : clamp(sample.speed * (0.006 + particle.depth * 0.004), size * 2.4, size * 9);
   const trailA = {
     x: sample.point.x - sample.tangent.x * trailLength * 0.32,
     y: sample.point.y - sample.tangent.y * trailLength * 0.32
@@ -423,8 +451,7 @@ function drawTaijiFlowField(
   if (intensity <= 0) return;
 
   const radius = getTaijiRadius(width, height);
-  const rotationProgress = easeInOutCubic(smoothstep(GATHER_END, ROTATION_END, progress));
-  const rotation = TAIJI_ENTRY_ANGLE + TAIJI_ROTATION * rotationProgress;
+  const rotation = TAIJI_ENTRY_ANGLE + resolveTaijiRotation(progress);
   const seamWidth = clamp(radius * 0.006, 4, 10);
   context.save();
   context.translate(width * 0.5, height * 0.5);
@@ -486,7 +513,7 @@ export function resolveParticleProgress(startedAt: number, now: number, duration
 
 export function startPptParticleMorph({
   canvas,
-  duration = 2300,
+  duration = PARTICLE_TRANSITION_DURATION,
   quality = "balanced",
   onProgress,
   onPhaseChange,

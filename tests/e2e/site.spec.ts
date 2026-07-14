@@ -211,15 +211,17 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(particleFlow).toHaveAttribute("data-particle-transition-state", "idle");
   await expect(particleFlow).toHaveAttribute("data-particle-transition-phase", "idle");
   await expect(particleFlow).toHaveAttribute("data-particle-transition-model", "fullscreen-taiji-particle-wipe");
-  await expect(particleFlow).toHaveAttribute("data-particle-transition-duration-ms", "2300");
+  await expect(particleFlow).toHaveAttribute("data-particle-transition-duration-ms", "2800");
   await expect(particleFlow).toHaveAttribute("data-particle-timeline", "wall-clock");
   await expect(particleFlow).toHaveAttribute("data-render-quality", /^(high|balanced|low)$/);
   await expect(particleFlow).toHaveAttribute("data-particle-target-order", "main-view-behind-curtain");
-  await expect(particleFlow).toHaveAttribute("data-particle-path", "axis-gather-rotate-axis-release");
+  await expect(particleFlow).toHaveAttribute("data-particle-path", "tangent-continuous-axis-taiji-axis");
+  await expect(particleFlow).toHaveAttribute("data-particle-continuity", "c1-tangent-matched");
+  await expect(particleFlow).toHaveAttribute("data-particle-orbit", "continuous-slow-spin");
   await expect(particleFlow).toHaveAttribute("data-particle-polarities", "light-dark");
   await expect(particleFlow).toHaveAttribute("data-particle-entry-axes", "light-vertical-dark-horizontal");
   await expect(particleFlow).toHaveAttribute("data-particle-exit-axes", "opposite-axis-edges");
-  await expect(particleFlow).toHaveAttribute("data-particle-rotation-degrees", "540");
+  await expect(particleFlow).toHaveAttribute("data-particle-rotation-degrees", "108");
   await expect(particleFlow).toHaveAttribute("data-particle-taiji-geometry", "s-curve-dual-eyes");
   await expect(particleFlow).toHaveAttribute("data-particle-coverage", "viewport-diagonal");
   await expect(particleFlow).toHaveAttribute("data-particle-count", "0");
@@ -242,6 +244,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
     )
     .toBe(true);
   await expect.poll(() => page.evaluate(() => typeof window.__stopWebglFluidBackground)).toBe("function");
+  await expect(hero.locator("#background")).toHaveAttribute("data-fluid-time-scale", "0.5");
   await expect(page.locator("[data-github-corner]")).toHaveAttribute("href", githubRepoHref);
   await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
   await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
