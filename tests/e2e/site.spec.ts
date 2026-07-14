@@ -14,17 +14,12 @@ async function getNumericAttribute(locator: Locator, name: string) {
   return Number(await locator.getAttribute(name));
 }
 
-async function expectFluidSinkToMatchAvatar(fluidCanvas: Locator, fluidCore: Locator, avatar: Locator) {
+async function expectFluidSinkToMatchAvatar(fluidCanvas: Locator, avatar: Locator) {
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-sink-x", /^0\.\d{4}$|^1\.0000$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-sink-y", /^0\.\d{4}$|^1\.0000$/);
 
-  const [canvasBox, coreBox, avatarBox] = await Promise.all([
-    fluidCanvas.boundingBox(),
-    fluidCore.boundingBox(),
-    avatar.boundingBox()
-  ]);
+  const [canvasBox, avatarBox] = await Promise.all([fluidCanvas.boundingBox(), avatar.boundingBox()]);
   expect(canvasBox).not.toBeNull();
-  expect(coreBox).not.toBeNull();
   expect(avatarBox).not.toBeNull();
 
   const sinkX = await getNumericAttribute(fluidCanvas, "data-fluid-transition-sink-x");
@@ -33,13 +28,19 @@ async function expectFluidSinkToMatchAvatar(fluidCanvas: Locator, fluidCore: Loc
   const sinkPageY = canvasBox!.y + (1 - sinkY) * canvasBox!.height;
   const avatarCenterX = avatarBox!.x + avatarBox!.width / 2;
   const avatarCenterY = avatarBox!.y + avatarBox!.height / 2;
-  const coreCenterX = coreBox!.x + coreBox!.width / 2;
-  const coreCenterY = coreBox!.y + coreBox!.height / 2;
 
   expect(Math.abs(sinkPageX - avatarCenterX)).toBeLessThan(2);
   expect(Math.abs(sinkPageY - avatarCenterY)).toBeLessThan(2);
-  expect(Math.abs(coreCenterX - avatarCenterX)).toBeLessThan(2);
-  expect(Math.abs(coreCenterY - avatarCenterY)).toBeLessThan(2);
+}
+
+function expectBoxesToMatch(
+  first: { x: number; y: number; width: number; height: number },
+  second: { x: number; y: number; width: number; height: number }
+) {
+  expect(Math.abs(first.x - second.x)).toBeLessThan(0.5);
+  expect(Math.abs(first.y - second.y)).toBeLessThan(0.5);
+  expect(Math.abs(first.width - second.width)).toBeLessThan(0.5);
+  expect(Math.abs(first.height - second.height)).toBeLessThan(0.5);
 }
 
 async function waitForMainViewSettled(mainView: Locator) {
@@ -135,6 +136,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   const goBackground = mainView.locator("[data-interactive-go-background]");
   const profileCard = page.locator("[data-profile-card]");
   const profileCardInner = profileCard.locator(".profile-card-inner");
+  const profileAvatar = profileCard.locator("img.profile-avatar");
 
   await expect(page.locator("body > header")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Products", exact: true })).toHaveCount(0);
@@ -244,7 +246,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-duration-ms", "2600");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-injection-count", /^(8|10|12)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", "0.0000");
-  await expect(hero.locator("[data-fluid-transition-core]")).toBeAttached();
+  await expect(hero.locator("[data-fluid-transition-core]")).toHaveCount(0);
   await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(hero.locator("[data-shape-streak-primary]")).toHaveCount(0);
@@ -281,17 +283,22 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
 
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-main-view", "active");
-  await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "transition");
+  await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", /^(transition|handoff)$/);
   await expect(hero).toHaveClass(/is-leaving/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "running");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", /^(surge|vortex|absorb|reveal)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", /^0\.\d{4}$/);
   await expect.poll(() => getNumericAttribute(fluidCanvas, "data-fluid-transition-injected-count")).toBeGreaterThan(0);
-  await expectFluidSinkToMatchAvatar(
-    fluidCanvas,
-    hero.locator("[data-fluid-transition-core]"),
-    profileCard.locator("img.profile-avatar")
-  );
+  await expectFluidSinkToMatchAvatar(fluidCanvas, profileAvatar);
+  const transitionAvatarBox = await profileAvatar.boundingBox();
+  expect(transitionAvatarBox).not.toBeNull();
+  const transitionAvatarStyle = await profileAvatar.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { opacity: Number(style.opacity), transform: style.transform };
+  });
+  expect(transitionAvatarStyle.opacity).toBeGreaterThanOrEqual(0);
+  expect(transitionAvatarStyle.opacity).toBeLessThanOrEqual(1);
+  expect(transitionAvatarStyle.transform).toBe("none");
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(goBackground).toBeVisible();
   await expect.poll(() => page.locator("html").getAttribute("data-home-render-phase")).toBe("handoff");
@@ -313,10 +320,17 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(profileCard).toBeInViewport();
   await expect(profileCard.getByRole("heading", { name: "Personal Homepage" })).toBeVisible();
   await expect(profileCard.getByText(profileSignature)).toBeVisible();
-  await expect(profileCard.locator("img.profile-avatar")).toHaveAttribute("src", profileAvatarSrc);
-  await expect(profileCard.locator("img.profile-avatar")).toHaveAttribute("alt", "Holy grail avatar");
-  await expect(profileCard.locator("img.profile-avatar")).toHaveAttribute("decoding", "async");
-  await expect(profileCard.locator("img.profile-avatar")).toHaveAttribute("fetchpriority", "low");
+  await expect(profileAvatar).toHaveAttribute("src", profileAvatarSrc);
+  await expect(profileAvatar).toHaveAttribute("alt", "Holy grail avatar");
+  await expect(profileAvatar).toHaveAttribute("decoding", "async");
+  await expect(profileAvatar).toHaveAttribute("fetchpriority", "low");
+  await page.waitForTimeout(500);
+  const settledAvatarBox = await profileAvatar.boundingBox();
+  expect(settledAvatarBox).not.toBeNull();
+  expectBoxesToMatch(transitionAvatarBox!, settledAvatarBox!);
+  await expect(profileAvatar).toHaveCSS("opacity", "1");
+  await expect(profileAvatar).toHaveCSS("transform", "none");
+  await expect(profileCardInner).toHaveCSS("animation-name", "none");
   await expect(profileCard.getByRole("link", { name: "Projects", exact: true })).toBeVisible();
   await expect(profileCard.getByRole("link", { name: "About", exact: true })).toBeVisible();
   await expect(profileCard.getByRole("link", { name: "Contact", exact: true })).toHaveCount(0);
@@ -369,12 +383,14 @@ test("renders a static intro and go-backed main view for reduced motion users", 
   await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "done");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", "done");
-  await expect(hero.locator("[data-fluid-transition-core]")).not.toBeVisible();
+  await expect(hero.locator("[data-fluid-transition-core]")).toHaveCount(0);
   await expect(mainView).toHaveCSS("visibility", "visible");
   await expect(background).toBeVisible();
   await expect(background).toHaveAttribute("data-stone-count", /^[1-9]\d*$/);
   await expect(background).toHaveAttribute("data-render-state", "idle");
   await expect(background).toHaveAttribute("data-random-timer-state", "stopped");
+  await expect(page.locator("img.profile-avatar")).toHaveCSS("opacity", "1");
+  await expect(page.locator("img.profile-avatar")).toHaveCSS("transform", "none");
   await expect(page.locator("#main-view")).toBeInViewport();
   const canvas = background.locator("canvas[aria-label='交互围棋背景']");
   const center = await getCanvasCenter(canvas);

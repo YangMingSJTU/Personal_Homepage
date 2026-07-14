@@ -6,14 +6,13 @@ import ProfileCard from "@/components/home/ProfileCard.astro";
 import SiteLayout from "@/components/layout/SiteLayout.astro";
 import profileData from "@/data/profile.json";
 import type { Profile } from "@/types/content";
-import { withBase } from "@/lib/sitePath";
 
 const profile = profileData as Profile;
 ---
 
 <SiteLayout title="个人主页" description="项目、关于与联系方式入口。">
   <GitHubCorner href={profile.socials.github || "https://github.com/YangMingSJTU/Personal_Homepage"} />
-  <IntroOpeningHero avatarSrc={profile.avatar?.src ? withBase(profile.avatar.src) : undefined} client:load />
+  <IntroOpeningHero client:load />
 
   <section id="main-view" class="home-main content content-main relative">
     <InteractiveGoBackground client:load />

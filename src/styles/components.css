@@ -417,7 +417,6 @@
   width: 100%;
   padding: 32px 0;
   opacity: 0;
-  animation: profile-card-in 720ms ease 320ms both;
 }
 
 .profile-card header {

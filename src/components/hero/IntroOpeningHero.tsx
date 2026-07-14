@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  resolveFluidAvatarOpacity,
   FLUID_TRANSITION_DURATION,
   FLUID_TRANSITION_TIMELINE,
   getFluidInjectionCount,
@@ -155,13 +156,8 @@ function smoothRange(start: number, end: number, value: number) {
   return normalized * normalized * (3 - 2 * normalized);
 }
 
-interface IntroOpeningHeroProps {
-  avatarSrc?: string;
-}
-
-export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
+export default function IntroOpeningHero() {
   const sectionRef = useRef<HTMLElement | null>(null);
-  const fluidCoreRef = useRef<HTMLDivElement | null>(null);
   const fluidTransitionControllerRef = useRef<FluidTransitionController | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
@@ -190,8 +186,21 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
     const sourceContent = section.querySelector(".wrap") as HTMLElement | null;
     const sourceFluid = section.querySelector("#background") as HTMLCanvasElement | null;
     const profileCard = document.querySelector("[data-profile-card]") as HTMLElement | null;
+    stopFluidTransition();
+    if (sourceContent) sourceContent.style.transition = "none";
+    if (profileCardInner) {
+      profileCardInner.style.animation = "none";
+      profileCardInner.style.transition = "none";
+      profileCardInner.style.opacity = "1";
+      profileCardInner.style.transform = "none";
+    }
+    if (profileCard) {
+      profileCard.dataset.fluidHandoff = "active";
+      profileCard.style.setProperty("--fluid-avatar-opacity", "0");
+      profileCard.style.setProperty("--fluid-profile-progress", "0");
+    }
+
     const profileAvatar = profileCard?.querySelector(".profile-avatar") as HTMLElement | null;
-    const fluidCore = fluidCoreRef.current;
     const sectionRect = section.getBoundingClientRect();
     const fallbackTarget = {
       x: sectionRect.left + sectionRect.width / 2,
@@ -211,29 +220,6 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
           y: Math.min(1, Math.max(0, 1 - (avatarTarget.y - fluidRect.top) / fluidRect.height))
         }
       : { x: 0.5, y: 0.5 };
-    const coreTarget = {
-      x: avatarTarget.x - sectionRect.left,
-      y: avatarTarget.y - sectionRect.top
-    };
-
-    stopFluidTransition();
-    if (sourceContent) sourceContent.style.transition = "none";
-    if (profileCardInner) {
-      profileCardInner.style.animation = "none";
-      profileCardInner.style.transition = "none";
-      profileCardInner.style.opacity = "1";
-      profileCardInner.style.transform = "none";
-    }
-    if (profileCard) {
-      profileCard.dataset.fluidHandoff = "active";
-      profileCard.style.setProperty("--fluid-profile-progress", "0");
-    }
-    if (fluidCore) {
-      fluidCore.style.left = `${coreTarget.x}px`;
-      fluidCore.style.top = `${coreTarget.y}px`;
-      fluidCore.style.opacity = "0";
-      fluidCore.style.transform = "translate3d(-50%, -50%, 0) scale(0.82)";
-    }
     setFluidTransitionState("running");
     setFluidTransitionPhase("surge");
     handoffPreparedRef.current = false;
@@ -246,8 +232,7 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
       onProgress: (progress) => {
         const milestones = getTransitionMilestones(progress);
         const sourceDeparture = smoothRange(0.01, 0.16, progress);
-        const coreArrival = smoothRange(0.12, 0.3, progress);
-        const coreDeparture = smoothRange(0.84, 0.99, progress);
+        const avatarOpacity = resolveFluidAvatarOpacity(progress);
         const profileProgress = milestones.revealProfile ? smoothRange(0.76, 0.98, progress) : 0;
 
         if (sourceContent) {
@@ -262,13 +247,8 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
           setHomeRenderPhase("handoff", renderQualityRef.current);
         }
         if (profileCard) {
+          profileCard.style.setProperty("--fluid-avatar-opacity", avatarOpacity.toFixed(4));
           profileCard.style.setProperty("--fluid-profile-progress", profileProgress.toFixed(4));
-        }
-        if (fluidCore) {
-          const opacity = coreArrival * (1 - coreDeparture);
-          const scale = 0.82 + coreArrival * 0.18 + Math.sin(progress * Math.PI * 5) * 0.012 * (1 - coreDeparture);
-          fluidCore.style.opacity = opacity.toFixed(4);
-          fluidCore.style.transform = `translate3d(-50%, -50%, 0) scale(${scale.toFixed(4)})`;
         }
       },
       onComplete: () => {
@@ -278,8 +258,8 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
         mainView.style.transform = "";
         mainView.style.zIndex = "";
         if (profileCard) {
-          delete profileCard.dataset.fluidHandoff;
-          profileCard.style.removeProperty("--fluid-profile-progress");
+          profileCard.style.setProperty("--fluid-avatar-opacity", "1");
+          profileCard.style.setProperty("--fluid-profile-progress", "1");
         }
         if (profileCardInner) {
           profileCardInner.classList.add("in");
@@ -288,14 +268,15 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
           profileCardInner.style.animation = "";
           profileCardInner.style.transition = "";
         }
-        if (fluidCore) {
-          fluidCore.style.opacity = "0";
-          fluidCore.style.transform = "translate3d(-50%, -50%, 0) scale(0.96)";
-        }
         window.__stopWebglFluidBackground?.();
         sourceFluid?.setAttribute("data-fluid-render-state", "stopped");
         setHomeRenderPhase("main", renderQualityRef.current);
         window.requestAnimationFrame(() => {
+          if (profileCard) {
+            delete profileCard.dataset.fluidHandoff;
+            profileCard.style.removeProperty("--fluid-avatar-opacity");
+            profileCard.style.removeProperty("--fluid-profile-progress");
+          }
           section.style.visibility = "hidden";
         });
       }
@@ -303,14 +284,12 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
     if (!controller) {
       if (profileCard) {
         delete profileCard.dataset.fluidHandoff;
+        profileCard.style.removeProperty("--fluid-avatar-opacity");
         profileCard.style.removeProperty("--fluid-profile-progress");
       }
       if (profileCardInner) {
         profileCardInner.style.opacity = "";
         profileCardInner.style.transform = "";
-      }
-      if (fluidCore) {
-        fluidCore.style.opacity = "0";
       }
       return false;
     }
@@ -466,13 +445,8 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
     const profileCard = document.querySelector("[data-profile-card]") as HTMLElement | null;
     if (profileCard) {
       delete profileCard.dataset.fluidHandoff;
+      profileCard.style.removeProperty("--fluid-avatar-opacity");
       profileCard.style.removeProperty("--fluid-profile-progress");
-    }
-    if (fluidCoreRef.current) {
-      fluidCoreRef.current.style.opacity = "";
-      fluidCoreRef.current.style.transform = "";
-      fluidCoreRef.current.style.left = "";
-      fluidCoreRef.current.style.top = "";
     }
 
     const handleWheel = (event: WheelEvent) => {
@@ -544,12 +518,6 @@ export default function IntroOpeningHero({ avatarSrc }: IntroOpeningHeroProps) {
             data-fluid-transition-injection-count={getFluidInjectionCount(renderQuality)}
             data-fluid-transition-progress="0.0000"
           />
-
-          {avatarSrc ? (
-            <div ref={fluidCoreRef} className="fluid-transition-core" data-fluid-transition-core aria-hidden="true">
-              <img src={avatarSrc} alt="" width="112" height="112" decoding="async" />
-            </div>
-          ) : null}
 
           <div className={`wrap fade${introLoaded ? " in" : ""}`}>
             <h2 className="content-title">{introTitle}</h2>

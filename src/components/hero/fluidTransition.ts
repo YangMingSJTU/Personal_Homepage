@@ -3,6 +3,8 @@ import type { RenderQuality } from "@/components/hero/renderQuality";
 export type FluidTransitionPhase = "idle" | "surge" | "vortex" | "absorb" | "reveal" | "done";
 
 export const FLUID_TRANSITION_DURATION = 2600;
+export const FLUID_AVATAR_REVEAL_START = 0.12;
+export const FLUID_AVATAR_REVEAL_END = 0.3;
 export const FLUID_TRANSITION_TIMELINE = {
   surgeEnd: 0.22,
   vortexEnd: 0.56,
@@ -17,6 +19,14 @@ const injectionCounts: Record<RenderQuality, number> = {
 
 export function getFluidInjectionCount(quality: RenderQuality) {
   return injectionCounts[quality];
+}
+
+export function resolveFluidAvatarOpacity(progress: number) {
+  const normalized = Math.min(
+    1,
+    Math.max(0, (progress - FLUID_AVATAR_REVEAL_START) / (FLUID_AVATAR_REVEAL_END - FLUID_AVATAR_REVEAL_START))
+  );
+  return normalized * normalized * (3 - 2 * normalized);
 }
 
 export function resolveFluidTransitionProgress(startTime: number, now: number, duration = FLUID_TRANSITION_DURATION) {

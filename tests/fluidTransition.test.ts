@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  FLUID_AVATAR_REVEAL_END,
+  FLUID_AVATAR_REVEAL_START,
   FLUID_TRANSITION_DURATION,
   FLUID_TRANSITION_TIMELINE,
   getFluidInjectionCount,
   getInjectedFluidCount,
+  resolveFluidAvatarOpacity,
   resolveFluidTransitionPhase,
   resolveFluidTransitionProgress
 } from "@/components/hero/fluidTransition";
@@ -33,5 +36,14 @@ describe("fluid vortex transition", () => {
     expect(getInjectedFluidCount(0, 10)).toBe(0);
     expect(getInjectedFluidCount(FLUID_TRANSITION_TIMELINE.surgeEnd, 10)).toBe(10);
     expect(getInjectedFluidCount(1, 10)).toBe(10);
+  });
+
+  it("reveals the single profile avatar monotonically without overshoot", () => {
+    const samples = Array.from({ length: 21 }, (_, index) => resolveFluidAvatarOpacity(index / 20));
+
+    expect(resolveFluidAvatarOpacity(FLUID_AVATAR_REVEAL_START)).toBe(0);
+    expect(resolveFluidAvatarOpacity(FLUID_AVATAR_REVEAL_END)).toBe(1);
+    expect(samples.every((value) => value >= 0 && value <= 1)).toBe(true);
+    expect(samples.every((value, index) => index === 0 || value >= samples[index - 1])).toBe(true);
   });
 });

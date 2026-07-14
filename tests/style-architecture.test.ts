@@ -31,8 +31,10 @@ describe("style architecture", () => {
   });
 
   it("keeps the intro fluid canvas unobscured like the reference opening", () => {
+    const componentsCss = read("src/styles/components.css");
     const effectsCss = read("src/styles/effects.css");
     const introHero = read("src/components/hero/IntroOpeningHero.tsx");
+    const indexPage = read("src/pages/index.astro");
     const fluidTransition = read("src/components/hero/fluidTransition.ts");
     const renderQuality = read("src/components/hero/renderQuality.ts");
     const goBackground = read("src/components/home/InteractiveGoBackground.tsx");
@@ -43,11 +45,14 @@ describe("style architecture", () => {
     expect(introHero).toContain("BACK_COLOR: { r: 30, g: 31, b: 33 }");
     expect(introHero).toContain('data-transition-visual="clockwise-fluid-vortex-reveal"');
     expect(introHero).toContain('data-fluid-transition-model="random-surge-clockwise-avatar-sink"');
-    expect(introHero).toContain("data-fluid-transition-core");
+    expect(introHero).not.toContain("data-fluid-transition-core");
+    expect(introHero).not.toContain("avatarSrc");
+    expect(indexPage).not.toContain("avatarSrc");
     expect(introHero).toContain("__startWebglFluidTransition");
     expect(introHero).not.toContain("coreHandoff");
-    expect(introHero.match(/fluidCore\.style\.left/g) ?? []).toHaveLength(1);
-    expect(introHero.match(/fluidCore\.style\.top/g) ?? []).toHaveLength(1);
+    expect(introHero).not.toContain("fluidCore");
+    expect(introHero).toContain("resolveFluidAvatarOpacity");
+    expect(introHero).toContain('setProperty("--fluid-avatar-opacity"');
     expect(introHero).not.toContain("data-intro-particle-transition");
     expect(introHero).not.toContain("startPptParticleMorph");
     expect(introHero).toContain('data-fluid-config-source="simonaking-homepage"');
@@ -64,8 +69,11 @@ describe("style architecture", () => {
     expect(introHero).toContain("data-quote-interlude-ms={quoteInterludeMs}");
     expect(introHero).toContain("getQuoteSweepDuration(quoteState.outgoing)");
     expect(introHero).toContain("pickNextIntroQuote");
-    expect(effectsCss).toContain(".fluid-transition-core");
+    expect(effectsCss).not.toContain(".fluid-transition-core");
     expect(effectsCss).toContain('.profile-card[data-fluid-handoff="active"]');
+    expect(effectsCss).toContain("opacity: var(--fluid-avatar-opacity, 0)");
+    expect(effectsCss).not.toContain("@keyframes profile-card-in");
+    expect(componentsCss).not.toMatch(/animation:\s*profile-card-in/);
     expect(effectsCss).not.toContain(".intro-particle-morph");
     expect(effectsCss).not.toContain(".slide-transition-edge");
     expect(effectsCss).toMatch(/\.content-title\s*\{[^}]*text-shadow:\s*none;[^}]*animation:\s*none;/s);
