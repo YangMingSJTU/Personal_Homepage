@@ -382,14 +382,13 @@ const transitionVelocityShader = compileShader(gl.FRAGMENT_SHADER, `
         clockwise.x /= aspectRatio;
         radial.x /= aspectRatio;
 
-        float arrival = smoothstep(0.0, 0.24, progress);
-        float absorption = smoothstep(0.46, 0.92, progress);
-        float centerFalloff = 1.0 - smoothstep(0.04, 1.08, distanceToCenter);
+        float spiralProgress = smoothstep(0.0, 0.9, progress);
+        float distanceAttenuation = mix(1.0, 0.62, smoothstep(0.06, 1.35, distanceToCenter));
         float outerBoost = smoothstep(0.08, 0.72, distanceToCenter);
-        float swirlStrength = mix(760.0, 1280.0, arrival) * (1.0 - absorption * 0.34);
-        float sinkStrength = mix(180.0, 1720.0, absorption);
+        float swirlStrength = mix(980.0, 420.0, spiralProgress);
+        float sinkStrength = mix(520.0, 1850.0, spiralProgress);
         vec2 force = clockwise * swirlStrength + (-radial) * sinkStrength;
-        force *= centerFalloff * mix(0.62, 1.0, outerBoost);
+        force *= distanceAttenuation * mix(0.76, 1.08, outerBoost);
         velocity += force * dt;
 
         gl_FragColor = vec4(velocity, 0.0, 1.0);
@@ -1155,8 +1154,8 @@ function injectTransitionSplat(state, index) {
 	const inwardX = -radialX / aspectRatio;
 	const inwardY = -radialY;
 	const force = 860 + state.random() * 520;
-	const dx = (clockwiseX * 0.88 + inwardX * 0.34) * force;
-	const dy = (clockwiseY * 0.88 + inwardY * 0.34) * force;
+	const dx = (clockwiseX * 0.62 + inwardX * 0.78) * force;
+	const dy = (clockwiseY * 0.62 + inwardY * 0.78) * force;
 	const color = generateColor();
 	const colorBoost = 6.5 + state.random() * 3.5;
 	color.r *= colorBoost;

@@ -242,6 +242,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
     "data-fluid-transition-model",
     "random-surge-clockwise-avatar-sink"
   );
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "continuous-inward-spiral");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-duration-ms", "2600");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-injection-count", /^(8|10|12)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", "0.0000");
@@ -456,6 +457,7 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
     "data-fluid-transition-model",
     "random-surge-clockwise-avatar-sink"
   );
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "continuous-inward-spiral");
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();

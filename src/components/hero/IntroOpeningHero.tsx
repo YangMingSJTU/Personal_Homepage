@@ -514,6 +514,7 @@ export default function IntroOpeningHero() {
             data-fluid-transition-state={fluidTransitionState}
             data-fluid-transition-phase={fluidTransitionPhase}
             data-fluid-transition-model="random-surge-clockwise-avatar-sink"
+            data-fluid-transition-flow="continuous-inward-spiral"
             data-fluid-transition-duration-ms={FLUID_TRANSITION_DURATION}
             data-fluid-transition-injection-count={getFluidInjectionCount(renderQuality)}
             data-fluid-transition-progress="0.0000"

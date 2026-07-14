@@ -45,6 +45,7 @@ describe("style architecture", () => {
     expect(introHero).toContain("BACK_COLOR: { r: 30, g: 31, b: 33 }");
     expect(introHero).toContain('data-transition-visual="clockwise-fluid-vortex-reveal"');
     expect(introHero).toContain('data-fluid-transition-model="random-surge-clockwise-avatar-sink"');
+    expect(introHero).toContain('data-fluid-transition-flow="continuous-inward-spiral"');
     expect(introHero).not.toContain("data-fluid-transition-core");
     expect(introHero).not.toContain("avatarSrc");
     expect(indexPage).not.toContain("avatarSrc");
@@ -102,6 +103,10 @@ describe("style architecture", () => {
     expect(fluidVendor).toContain("transitionProgress");
     expect(fluidVendor).toContain("uniform vec2 transitionCenter");
     expect(fluidVendor).toContain("vUv - transitionCenter");
+    expect(fluidVendor).toContain("mix(980.0, 420.0, spiralProgress)");
+    expect(fluidVendor).toContain("mix(520.0, 1850.0, spiralProgress)");
+    expect(fluidVendor).toContain("clockwiseX * 0.62 + inwardX * 0.78");
+    expect(fluidVendor).not.toContain("clockwiseX * 0.88 + inwardX * 0.34");
     expect(introHero).not.toContain("data-shape-streak-primary");
     expect(introHero).not.toContain("data-shape-streak-secondary");
   });
