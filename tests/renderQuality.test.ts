@@ -66,9 +66,9 @@ describe("homepage render quality", () => {
     });
     expect(getRenderProfile("balanced").fluid).toMatchObject({
       PIXEL_RATIO_CAP: 1.35,
-      SIM_RESOLUTION: 96,
-      DYE_RESOLUTION: 768,
-      PRESSURE_ITERATIONS: 16,
+      SIM_RESOLUTION: 128,
+      DYE_RESOLUTION: 1024,
+      PRESSURE_ITERATIONS: 20,
       BLOOM_ITERATIONS: 6,
       BLOOM_RESOLUTION: 192,
       SUNRAYS: true,
@@ -89,13 +89,13 @@ describe("homepage render quality", () => {
   it("offers at most one lower-cost runtime profile", () => {
     expect(getRuntimeFluidFallback("high")).toEqual({
       quality: "balanced",
-      PRESSURE_ITERATIONS: 16,
+      PRESSURE_ITERATIONS: 20,
       BLOOM_ITERATIONS: 6,
       SUNRAYS: true
     });
     expect(getRuntimeFluidFallback("balanced")).toEqual({
       quality: "low",
-      PRESSURE_ITERATIONS: 12,
+      PRESSURE_ITERATIONS: 20,
       BLOOM_ITERATIONS: 4,
       SUNRAYS: false
     });

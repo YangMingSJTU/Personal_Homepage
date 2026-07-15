@@ -52,9 +52,9 @@ const renderProfiles: Record<RenderQuality, RenderProfile> = {
     goDprCap: 1.35,
     fluid: {
       PIXEL_RATIO_CAP: 1.35,
-      SIM_RESOLUTION: 96,
-      DYE_RESOLUTION: 768,
-      PRESSURE_ITERATIONS: 16,
+      SIM_RESOLUTION: 128,
+      DYE_RESOLUTION: 1024,
+      PRESSURE_ITERATIONS: 20,
       BLOOM_ITERATIONS: 6,
       BLOOM_RESOLUTION: 192,
       SUNRAYS: true,
@@ -114,10 +114,11 @@ export function getRenderProfile(quality: RenderQuality): RenderProfile {
 export function getRuntimeFluidFallback(quality: RenderQuality): RuntimeFluidFallback | null {
   if (quality === "low") return null;
   const fallbackQuality: RenderQuality = quality === "high" ? "balanced" : "low";
+  const current = renderProfiles[quality].fluid;
   const fallback = renderProfiles[fallbackQuality].fluid;
   return {
     quality: fallbackQuality,
-    PRESSURE_ITERATIONS: fallback.PRESSURE_ITERATIONS,
+    PRESSURE_ITERATIONS: current.PRESSURE_ITERATIONS,
     BLOOM_ITERATIONS: fallback.BLOOM_ITERATIONS,
     SUNRAYS: fallback.SUNRAYS
   };
