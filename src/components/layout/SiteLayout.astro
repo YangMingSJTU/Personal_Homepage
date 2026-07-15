@@ -7,11 +7,15 @@ import "../../styles/global.css";
 interface Props {
   title?: string;
   description?: string;
+  showFooter?: boolean;
+  lockViewport?: boolean;
 }
 
 const {
   title = "个人主页",
-  description = "个人产品、项目和联系方式入口。"
+  description = "个人产品、项目和联系方式入口。",
+  showFooter = true,
+  lockViewport = false
 } = Astro.props;
 
 const canonical = new URL(withBase(Astro.url.pathname), Astro.site || "https://yangmingsjtu.github.io");
@@ -19,7 +23,7 @@ const ogImage = new URL(withBase("/og-image.svg"), canonical).toString();
 ---
 
 <!doctype html>
-<html lang="zh-CN" data-ui-theme="soft-dark">
+<html lang="zh-CN" data-ui-theme="soft-dark" class={lockViewport ? "viewport-locked" : undefined}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -39,7 +43,7 @@ const ogImage = new URL(withBase("/og-image.svg"), canonical).toString();
       <main>
         <slot />
       </main>
-      <Footer />
+      {showFooter && <Footer />}
     </div>
   </body>
 </html>

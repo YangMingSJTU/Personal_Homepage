@@ -30,6 +30,20 @@ describe("style architecture", () => {
     expect(layout).not.toContain("personal-homepage-theme");
   });
 
+  it("keeps the homepage in a footer-free locked viewport", () => {
+    const layout = read("src/components/layout/SiteLayout.astro");
+    const indexPage = read("src/pages/index.astro");
+    const baseCss = read("src/styles/base.css");
+
+    expect(layout).toContain("showFooter = true");
+    expect(layout).toContain("lockViewport = false");
+    expect(layout).toContain("{showFooter && <Footer />}");
+    expect(indexPage).toContain("showFooter={false}");
+    expect(indexPage).toContain("lockViewport={true}");
+    expect(baseCss).toContain("html.viewport-locked body");
+    expect(baseCss).toMatch(/\.viewport-locked \.page-shell > main\s*\{[^}]*overflow:\s*hidden;/s);
+  });
+
   it("keeps the intro fluid canvas unobscured like the reference opening", () => {
     const componentsCss = read("src/styles/components.css");
     const effectsCss = read("src/styles/effects.css");

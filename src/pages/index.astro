@@ -10,7 +10,12 @@ import type { Profile } from "@/types/content";
 const profile = profileData as Profile;
 ---
 
-<SiteLayout title="个人主页" description="项目、关于与联系方式入口。">
+<SiteLayout
+  title="个人主页"
+  description="项目、关于与联系方式入口。"
+  showFooter={false}
+  lockViewport={true}
+>
   <GitHubCorner href={profile.socials.github || "https://github.com/YangMingSJTU/Personal_Homepage"} />
   <IntroOpeningHero client:load />
 

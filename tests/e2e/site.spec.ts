@@ -141,6 +141,15 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   const profileAvatar = profileCard.locator("img.profile-avatar");
 
   await expect(page.locator("body > header")).toHaveCount(0);
+  await expect(page.locator(".site-footer")).toHaveCount(0);
+  await expect(page.locator("html")).toHaveClass(/viewport-locked/);
+  const introViewport = await page.evaluate(() => ({
+    clientHeight: document.documentElement.clientHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+    overflow: getComputedStyle(document.documentElement).overflow
+  }));
+  expect(introViewport.scrollHeight).toBeLessThanOrEqual(introViewport.clientHeight);
+  expect(introViewport.overflow).toBe("hidden");
   await expect(page.getByRole("link", { name: "Products", exact: true })).toHaveCount(0);
   await expect(page.locator("html")).not.toHaveAttribute("data-main-view", "active");
   await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "intro");
@@ -686,6 +695,7 @@ test("uses the shared sci-fi go background on public content pages", async ({ pa
     await expect(page.locator("html")).toHaveAttribute("data-ui-theme", "soft-dark");
     await expect(page.locator("[data-theme-toggle]")).toHaveCount(0);
     await expect(page.locator("[data-scifi-go-background]")).toBeVisible();
+    await expect(page.locator(".site-footer")).toBeVisible();
     await expect(page.getByText("G.G. Lab")).toHaveCount(0);
     await expect(page.getByText("AI Learner & Product Builder")).toHaveCount(0);
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -706,7 +716,10 @@ test("keeps mobile layout within the viewport", async ({ page }) => {
   await page.goto(pagePath("/"));
 
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+  const clientHeight = await page.evaluate(() => document.documentElement.clientHeight);
   expect(scrollWidth).toBeLessThanOrEqual(390);
+  expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
 });
 
 test("contact page exposes a copy email action", async ({ page }) => {
