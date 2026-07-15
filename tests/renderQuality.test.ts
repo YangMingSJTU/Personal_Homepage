@@ -65,14 +65,14 @@ describe("homepage render quality", () => {
       SUNRAYS_RESOLUTION: 196
     });
     expect(getRenderProfile("balanced").fluid).toMatchObject({
-      PIXEL_RATIO_CAP: 1.35,
+      PIXEL_RATIO_CAP: 1.5,
       SIM_RESOLUTION: 128,
       DYE_RESOLUTION: 1024,
       PRESSURE_ITERATIONS: 20,
-      BLOOM_ITERATIONS: 6,
-      BLOOM_RESOLUTION: 192,
+      BLOOM_ITERATIONS: 8,
+      BLOOM_RESOLUTION: 256,
       SUNRAYS: true,
-      SUNRAYS_RESOLUTION: 128
+      SUNRAYS_RESOLUTION: 196
     });
     expect(getRenderProfile("low").fluid).toMatchObject({
       PIXEL_RATIO_CAP: 1.25,
@@ -90,7 +90,7 @@ describe("homepage render quality", () => {
     expect(getRuntimeFluidFallback("high")).toEqual({
       quality: "balanced",
       PRESSURE_ITERATIONS: 20,
-      BLOOM_ITERATIONS: 6,
+      BLOOM_ITERATIONS: 8,
       SUNRAYS: true
     });
     expect(getRuntimeFluidFallback("balanced")).toEqual({

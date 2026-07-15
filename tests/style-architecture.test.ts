@@ -82,7 +82,7 @@ describe("style architecture", () => {
     expect(introHero).toContain("RUNTIME_QUALITY_FALLBACK: getRuntimeFluidFallback(quality)");
     expect(introHero).toContain("updateSinkPoint: (sinkPoint");
     expect(introHero).toContain('window.addEventListener("resize", scheduleSinkUpdate)');
-    expect(introHero).toContain("IDLE_SIMULATION_RATE: FLUID_IDLE_SIMULATION_RATE");
+    expect(introHero).not.toContain("IDLE_SIMULATION_RATE");
     expect(introHero).not.toContain('dispatchEvent(new Event("resize"))');
     expect(introHero).toContain("getTransitionMilestones");
     expect(introHero).toContain('setHomeRenderPhase("handoff"');
@@ -117,7 +117,7 @@ describe("style architecture", () => {
     expect(goBackground).toContain("requestRenderRef");
     expect(goBackground).not.toContain('readCssVariable(canvasHost, "--go-scan"');
     expect(fluidVendor).toContain("PIXEL_RATIO_CAP");
-    expect(fluidVendor).toContain("frameDt * idleSimulationRate");
+    expect(fluidVendor).not.toContain("IDLE_SIMULATION_RATE");
     expect(fluidVendor).toContain("fluidRenderState");
     expect(fluidVendor).toContain("transitionVelocityShader");
     expect(fluidVendor).toContain("injectTransitionSplat");

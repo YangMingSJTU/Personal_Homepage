@@ -51,14 +51,14 @@ const renderProfiles: Record<RenderQuality, RenderProfile> = {
   balanced: {
     goDprCap: 1.35,
     fluid: {
-      PIXEL_RATIO_CAP: 1.35,
+      PIXEL_RATIO_CAP: 1.5,
       SIM_RESOLUTION: 128,
       DYE_RESOLUTION: 1024,
       PRESSURE_ITERATIONS: 20,
-      BLOOM_ITERATIONS: 6,
-      BLOOM_RESOLUTION: 192,
+      BLOOM_ITERATIONS: 8,
+      BLOOM_RESOLUTION: 256,
       SUNRAYS: true,
-      SUNRAYS_RESOLUTION: 128
+      SUNRAYS_RESOLUTION: 196
     }
   },
   low: {
