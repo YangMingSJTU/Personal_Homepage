@@ -8,7 +8,7 @@ import {
 } from "@/components/hero/renderQuality";
 
 describe("homepage render quality", () => {
-  it("uses low quality for mobile and constrained hardware", () => {
+  it("uses low quality only for mobile viewports", () => {
     expect(
       resolveRenderQuality({
         width: 390,
@@ -18,37 +18,25 @@ describe("homepage render quality", () => {
         deviceMemory: 8
       })
     ).toBe("low");
+  });
+
+  it("starts every desktop viewport at reference quality", () => {
     expect(
       resolveRenderQuality({
         width: 1440,
         height: 900,
-        devicePixelRatio: 1,
+        devicePixelRatio: 2,
         hardwareConcurrency: 4,
-        deviceMemory: 8
+        deviceMemory: 4
       })
-    ).toBe("low");
-  });
-
-  it("keeps balanced as the regular desktop default", () => {
+    ).toBe("high");
     expect(
       resolveRenderQuality({
-        width: 1440,
-        height: 900,
-        devicePixelRatio: 1,
-        hardwareConcurrency: 8,
-        deviceMemory: 8
-      })
-    ).toBe("balanced");
-  });
-
-  it("reserves high quality for capable low-pixel-density displays", () => {
-    expect(
-      resolveRenderQuality({
-        width: 1280,
-        height: 720,
-        devicePixelRatio: 1,
-        hardwareConcurrency: 12,
-        deviceMemory: 8
+        width: 2560,
+        height: 1440,
+        devicePixelRatio: 2,
+        hardwareConcurrency: 2,
+        deviceMemory: 2
       })
     ).toBe("high");
   });
@@ -65,14 +53,14 @@ describe("homepage render quality", () => {
       SUNRAYS_RESOLUTION: 196
     });
     expect(getRenderProfile("balanced").fluid).toMatchObject({
-      PIXEL_RATIO_CAP: 1.5,
-      SIM_RESOLUTION: 128,
-      DYE_RESOLUTION: 1024,
-      PRESSURE_ITERATIONS: 20,
-      BLOOM_ITERATIONS: 8,
-      BLOOM_RESOLUTION: 256,
+      PIXEL_RATIO_CAP: 1.35,
+      SIM_RESOLUTION: 96,
+      DYE_RESOLUTION: 768,
+      PRESSURE_ITERATIONS: 16,
+      BLOOM_ITERATIONS: 6,
+      BLOOM_RESOLUTION: 192,
       SUNRAYS: true,
-      SUNRAYS_RESOLUTION: 196
+      SUNRAYS_RESOLUTION: 128
     });
     expect(getRenderProfile("low").fluid).toMatchObject({
       PIXEL_RATIO_CAP: 1.25,
@@ -89,13 +77,13 @@ describe("homepage render quality", () => {
   it("offers at most one lower-cost runtime profile", () => {
     expect(getRuntimeFluidFallback("high")).toEqual({
       quality: "balanced",
-      PRESSURE_ITERATIONS: 20,
-      BLOOM_ITERATIONS: 8,
+      PRESSURE_ITERATIONS: 16,
+      BLOOM_ITERATIONS: 6,
       SUNRAYS: true
     });
     expect(getRuntimeFluidFallback("balanced")).toEqual({
       quality: "low",
-      PRESSURE_ITERATIONS: 20,
+      PRESSURE_ITERATIONS: 12,
       BLOOM_ITERATIONS: 4,
       SUNRAYS: false
     });
