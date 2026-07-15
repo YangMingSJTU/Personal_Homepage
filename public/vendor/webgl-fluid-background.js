@@ -42,6 +42,7 @@ const defaultFluidConfig = {
 	SHADING: true,
 	COLORFUL: true,
 	COLOR_UPDATE_SPEED: 10,
+	IDLE_SIMULATION_RATE: 0.86,
 	PAUSED: false,
 	BACK_COLOR: { r: 0, g: 0, b: 0 },
 	TRANSPARENT: false,
@@ -1313,6 +1314,7 @@ const initBackground = () => {
 	canvas.dataset.fluidEffectiveQuality = config.RENDER_QUALITY || 'balanced'
 	canvas.dataset.fluidQualityDowngraded = 'false'
 	canvas.dataset.fluidRuntimeProbeState = config.RUNTIME_QUALITY_FALLBACK ? 'warming' : 'disabled'
+	canvas.dataset.fluidIdleCadence = String(config.IDLE_SIMULATION_RATE || 1)
 	changeColor()
 	updateKeywords();
 	initFramebuffers();
@@ -1406,10 +1408,12 @@ function update(first) {
 		return
 	}
 	sampleRuntimeQuality(performance.now());
-	const dt = calcDeltaTime();
+	const frameDt = calcDeltaTime();
 	if (resizeCanvas())
 		initFramebuffers();
 	const activeTransition = updateFluidTransition(performance.now());
+	const idleCadence = Math.min(1, Math.max(0.1, Number(config.IDLE_SIMULATION_RATE) || 1));
+	const dt = activeTransition ? frameDt : frameDt * idleCadence;
 	updateColors(dt);
 	applyInputs();
 	if (!config.PAUSED)

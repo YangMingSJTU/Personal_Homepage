@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FLUID_AVATAR_REVEAL_END,
   FLUID_AVATAR_REVEAL_START,
+  FLUID_REFERENCE_IDLE_CADENCE,
   FLUID_TRANSITION_DURATION,
   FLUID_TRANSITION_TIMELINE,
   getFluidInjectionCount,
@@ -12,6 +13,10 @@ import {
 } from "@/components/hero/fluidTransition";
 
 describe("fluid vortex transition", () => {
+  it("compensates for the reference page's frame-bound idle cadence", () => {
+    expect(FLUID_REFERENCE_IDLE_CADENCE).toBe(0.86);
+  });
+
   it("uses a continuous surge, vortex, absorption, and reveal timeline", () => {
     expect(resolveFluidTransitionPhase(0)).toBe("idle");
     expect(resolveFluidTransitionPhase(0.01)).toBe("surge");

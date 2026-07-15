@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   resolveFluidAvatarOpacity,
+  FLUID_REFERENCE_IDLE_CADENCE,
   FLUID_TRANSITION_DURATION,
   FLUID_TRANSITION_TIMELINE,
   getFluidInjectionCount,
@@ -64,6 +65,7 @@ const simonAKingFluidConfig = {
   SHADING: true,
   COLORFUL: true,
   COLOR_UPDATE_SPEED: 10,
+  IDLE_SIMULATION_RATE: FLUID_REFERENCE_IDLE_CADENCE,
   PAUSED: false,
   BACK_COLOR: { r: 30, g: 31, b: 33 },
   TRANSPARENT: false,
@@ -563,6 +565,7 @@ export default function IntroOpeningHero() {
             data-fluid-transition-distribution="edge-55-interior-45"
             data-fluid-transition-reveal="fluid-density-board-handoff"
             data-fluid-transition-capture="velocity-damped-avatar-core"
+            data-fluid-idle-cadence={FLUID_REFERENCE_IDLE_CADENCE}
             data-fluid-transition-duration-ms={FLUID_TRANSITION_DURATION}
             data-fluid-transition-injection-count={getFluidInjectionCount(renderQuality)}
             data-fluid-transition-progress="0.0000"

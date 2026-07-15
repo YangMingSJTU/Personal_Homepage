@@ -3,6 +3,7 @@ import type { RenderQuality } from "@/components/hero/renderQuality";
 export type FluidTransitionPhase = "idle" | "surge" | "vortex" | "absorb" | "reveal" | "done";
 
 export const FLUID_TRANSITION_DURATION = 2600;
+export const FLUID_REFERENCE_IDLE_CADENCE = 0.86;
 export const FLUID_AVATAR_REVEAL_START = 0.18;
 export const FLUID_AVATAR_REVEAL_END = 0.4;
 export const FLUID_TRANSITION_TIMELINE = {
