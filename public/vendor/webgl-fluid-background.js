@@ -386,20 +386,32 @@ const transitionVelocityShader = compileShader(gl.FRAGMENT_SHADER, `
         float distanceToCenter = max(length(physicalOffset), 0.001);
         vec2 radial = physicalOffset / distanceToCenter;
         vec2 clockwise = vec2(radial.y, -radial.x);
-        clockwise.x /= aspectRatio;
-        radial.x /= aspectRatio;
+        vec2 physicalVelocity = vec2(velocity.x * aspectRatio, velocity.y);
+
+        float terminalProgress = smoothstep(0.62, 0.94, progress);
+        float captureZone = 1.0 - smoothstep(0.03, 0.20, distanceToCenter);
+        float coreZone = 1.0 - smoothstep(0.02, 0.07, distanceToCenter);
+        float radialVelocity = dot(physicalVelocity, radial);
+        float tangentialVelocity = dot(physicalVelocity, clockwise);
+        float inwardVelocity = min(radialVelocity, 0.0);
+        float outwardVelocity = max(radialVelocity, 0.0);
+        tangentialVelocity *= 1.0 - terminalProgress * mix(0.45, 0.90, captureZone);
+        outwardVelocity *= 1.0 - captureZone * terminalProgress * 0.88;
+        inwardVelocity *= 1.0 - coreZone * terminalProgress * 0.82;
+        physicalVelocity = radial * (inwardVelocity + outwardVelocity) + clockwise * tangentialVelocity;
 
         float spiralProgress = smoothstep(0.0, 0.92, progress);
         float farZone = smoothstep(0.42, 1.08, distanceToCenter);
-        float centerDamping = smoothstep(0.035, 0.18, distanceToCenter);
-        float captureZone = 1.0 - smoothstep(0.045, 0.16, distanceToCenter);
-        float captureProgress = smoothstep(0.18, 0.88, progress);
-        velocity *= 1.0 - captureZone * captureProgress * 0.06;
-        float swirlStrength = mix(720.0, 300.0, spiralProgress) * mix(1.04, 0.66, farZone);
-        float sinkStrength = mix(740.0, 2050.0, spiralProgress) * mix(0.94, 1.22, farZone);
-        vec2 force = clockwise * swirlStrength + (-radial) * sinkStrength;
-        force *= centerDamping * mix(0.92, 1.08, farZone);
-        velocity += force * dt;
+        float swirlStrength = mix(720.0, 300.0, spiralProgress)
+            * mix(1.04, 0.66, farZone)
+            * mix(1.0, 0.08, terminalProgress);
+        float sinkStrength = mix(740.0, 2400.0, smoothstep(0.0, 0.95, progress))
+            * mix(0.94, 1.22, farZone);
+        float coreForceGate = smoothstep(0.02, 0.08, distanceToCenter);
+        vec2 physicalForce = clockwise * swirlStrength + (-radial) * sinkStrength;
+        physicalForce *= coreForceGate * mix(0.92, 1.08, farZone);
+        physicalVelocity += physicalForce * dt;
+        velocity = vec2(physicalVelocity.x / aspectRatio, physicalVelocity.y);
 
         gl_FragColor = vec4(velocity, 0.0, 1.0);
     }
@@ -450,7 +462,6 @@ const displayShaderSource = `
     uniform vec2 texelSize;
     uniform float transitionActive;
     uniform float transitionProgress;
-    uniform float transitionAspectRatio;
     uniform vec2 transitionCenter;
     uniform vec3 transitionBackground;
 
@@ -460,13 +471,19 @@ const displayShaderSource = `
     }
 
     void main () {
-        vec3 c = texture2D(uTexture, vUv).rgb;
+        float terminalPull = smoothstep(0.74, 0.97, transitionProgress);
+        float compressionScale = mix(1.0, 0.18, terminalPull);
+        vec2 sampleUv = transitionActive > 0.5
+            ? transitionCenter + (vUv - transitionCenter) / compressionScale
+            : vUv;
+        vec2 sampleTexelSize = texelSize / compressionScale;
+        vec3 c = texture2D(uTexture, sampleUv).rgb;
 
     #ifdef SHADING
-        vec3 lc = texture2D(uTexture, vL).rgb;
-        vec3 rc = texture2D(uTexture, vR).rgb;
-        vec3 tc = texture2D(uTexture, vT).rgb;
-        vec3 bc = texture2D(uTexture, vB).rgb;
+        vec3 lc = texture2D(uTexture, sampleUv - vec2(sampleTexelSize.x, 0.0)).rgb;
+        vec3 rc = texture2D(uTexture, sampleUv + vec2(sampleTexelSize.x, 0.0)).rgb;
+        vec3 tc = texture2D(uTexture, sampleUv + vec2(0.0, sampleTexelSize.y)).rgb;
+        vec3 bc = texture2D(uTexture, sampleUv - vec2(0.0, sampleTexelSize.y)).rgb;
 
         float dx = length(rc) - length(lc);
         float dy = length(tc) - length(bc);
@@ -479,11 +496,11 @@ const displayShaderSource = `
     #endif
 
     #ifdef BLOOM
-        vec3 bloom = texture2D(uBloom, vUv).rgb;
+        vec3 bloom = texture2D(uBloom, sampleUv).rgb;
     #endif
 
     #ifdef SUNRAYS
-        float sunrays = texture2D(uSunrays, vUv).r;
+        float sunrays = texture2D(uSunrays, sampleUv).r;
         c *= sunrays;
     #ifdef BLOOM
         bloom *= sunrays;
@@ -500,26 +517,18 @@ const displayShaderSource = `
 
         float a = max(c.r, max(c.g, c.b));
         if (transitionActive > 0.5) {
-            vec2 centered = vUv - transitionCenter;
-            vec2 physical = vec2(centered.x * transitionAspectRatio, centered.y);
-            float distanceToCenter = length(physical);
             float materialReveal = smoothstep(0.1, 0.42, transitionProgress);
             float densityReveal = smoothstep(0.12, 0.62, transitionProgress);
-            float guidedReveal = smoothstep(0.85, 0.98, transitionProgress);
-            float shrink = smoothstep(0.82, 0.99, transitionProgress);
-            vec2 furthestAxis = vec2(
-                max(transitionCenter.x, 1.0 - transitionCenter.x) * transitionAspectRatio,
-                max(transitionCenter.y, 1.0 - transitionCenter.y)
-            );
-            float maximumRadius = length(furthestAxis) + 0.08;
-            float radius = mix(maximumRadius, 0.0, shrink);
-            float spatialMask = 1.0 - smoothstep(radius - 0.18, radius + 0.18, distanceToCenter);
             float fluidPresence = smoothstep(0.008, 0.105, a);
             float densityMask = mix(1.0, fluidPresence, densityReveal);
-            float safetyEnvelope = max(spatialMask, fluidPresence * 0.55);
-            float guidedMask = mix(1.0, safetyEnvelope, guidedReveal);
-            float finalFade = 1.0 - smoothstep(0.95, 1.0, transitionProgress);
-            float alpha = densityMask * guidedMask * finalFade;
+            float edgeDistance = min(
+                min(sampleUv.x, sampleUv.y),
+                min(1.0 - sampleUv.x, 1.0 - sampleUv.y)
+            );
+            float compressedBounds = smoothstep(-0.002, 0.04, edgeDistance);
+            float sampleBounds = mix(1.0, compressedBounds, terminalPull);
+            float coreOpacity = 1.0 - smoothstep(0.97, 1.0, transitionProgress);
+            float alpha = densityMask * sampleBounds * coreOpacity;
             vec3 transitionColor = c + transitionBackground * (1.0 - materialReveal);
             gl_FragColor = vec4(transitionColor * alpha, alpha);
         }
@@ -1076,9 +1085,9 @@ const runtimeQualityProbe = {
 };
 
 const defaultTransitionTimeline = {
-	surgeEnd: 0.22,
+	surgeEnd: 0.2,
 	vortexEnd: 0.56,
-	absorbEnd: 0.88
+	absorbEnd: 0.92
 };
 
 function clamp01(value) {
@@ -1341,7 +1350,7 @@ window.__stopWebglFluidBackground = () => {
 
 window.__startWebglFluidTransition = (options = {}) => {
 	if (!initBackground.loaded || stopped || config.PAUSED) return null;
-	const duration = Math.max(600, Number(options.duration) || 2600);
+	const duration = Math.max(600, Number(options.duration) || 2800);
 	const injectionCount = Math.max(1, Math.round(Number(options.injectionCount) || 10));
 	const sinkPoint = normalizeTransitionSinkPoint(options.sinkPoint);
 	const timeline = Object.assign({}, defaultTransitionTimeline, options.timeline || {});
@@ -1612,7 +1621,6 @@ function drawDisplay(fbo, width, height) {
 	const transitionBackground = normalizeColor(config.BACK_COLOR);
 	gl.uniform1f(displayMaterial.uniforms.transitionActive, fluidTransition ? 1 : 0);
 	gl.uniform1f(displayMaterial.uniforms.transitionProgress, fluidTransition ? fluidTransition.progress : 0);
-	gl.uniform1f(displayMaterial.uniforms.transitionAspectRatio, canvas.width / Math.max(1, canvas.height));
 	gl.uniform2f(
 		displayMaterial.uniforms.transitionCenter,
 		fluidTransition ? fluidTransition.sinkPoint.x : 0.5,

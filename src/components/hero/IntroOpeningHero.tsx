@@ -18,7 +18,7 @@ import {
   type RenderQuality
 } from "@/components/hero/renderQuality";
 import { introQuotes } from "@/data/introQuotes";
-import { getTransitionMilestones, setHomeRenderPhase } from "@/lib/homeRenderPhase";
+import { PROFILE_REVEAL_PROGRESS, getTransitionMilestones, setHomeRenderPhase } from "@/lib/homeRenderPhase";
 import { withBase } from "@/lib/sitePath";
 
 declare global {
@@ -267,7 +267,7 @@ export default function IntroOpeningHero() {
         const milestones = getTransitionMilestones(progress);
         const sourceDeparture = smoothRange(0.01, 0.16, progress);
         const avatarOpacity = resolveFluidAvatarOpacity(progress);
-        const profileProgress = milestones.revealProfile ? smoothRange(0.76, 0.98, progress) : 0;
+        const profileProgress = milestones.revealProfile ? smoothRange(PROFILE_REVEAL_PROGRESS, 0.98, progress) : 0;
 
         if (sourceContent) {
           sourceContent.style.opacity = (1 - sourceDeparture).toFixed(4);
@@ -561,10 +561,10 @@ export default function IntroOpeningHero() {
             data-fluid-transition-state={fluidTransitionState}
             data-fluid-transition-phase={fluidTransitionPhase}
             data-fluid-transition-model="mixed-source-radius-aware-avatar-sink"
-            data-fluid-transition-flow="distance-aware-inward-spiral"
+            data-fluid-transition-flow="terminal-spiral-avatar-capture"
             data-fluid-transition-distribution="edge-55-interior-45"
-            data-fluid-transition-reveal="fluid-density-board-handoff"
-            data-fluid-transition-capture="velocity-damped-avatar-core"
+            data-fluid-transition-reveal="density-reveal-uv-compression"
+            data-fluid-transition-capture="tangent-damped-core-absorption"
             data-fluid-idle-cadence={FLUID_REFERENCE_IDLE_CADENCE}
             data-fluid-transition-duration-ms={FLUID_TRANSITION_DURATION}
             data-fluid-transition-injection-count={getFluidInjectionCount(renderQuality)}

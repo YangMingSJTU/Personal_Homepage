@@ -8,9 +8,10 @@ import {
 describe("homepage render handoff", () => {
   it("prepares the board before the fluid mask reveals it", () => {
     expect(HANDOFF_PREPARE_PROGRESS).toBe(0.08);
-    expect(PROFILE_REVEAL_PROGRESS).toBe(0.76);
+    expect(PROFILE_REVEAL_PROGRESS).toBe(0.82);
     expect(getTransitionMilestones(0.07)).toEqual({ prepareHandoff: false, revealProfile: false });
     expect(getTransitionMilestones(0.08)).toEqual({ prepareHandoff: true, revealProfile: false });
-    expect(getTransitionMilestones(0.76)).toEqual({ prepareHandoff: true, revealProfile: true });
+    expect(getTransitionMilestones(0.81)).toEqual({ prepareHandoff: true, revealProfile: false });
+    expect(getTransitionMilestones(0.82)).toEqual({ prepareHandoff: true, revealProfile: true });
   });
 });

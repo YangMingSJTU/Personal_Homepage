@@ -9,7 +9,7 @@ export type HomeRenderPhaseDetail = {
 
 export const HOME_RENDER_PHASE_EVENT = "personal-homepage:render-phase";
 export const HANDOFF_PREPARE_PROGRESS = 0.08;
-export const PROFILE_REVEAL_PROGRESS = 0.76;
+export const PROFILE_REVEAL_PROGRESS = 0.82;
 
 export function getTransitionMilestones(progress: number) {
   return {

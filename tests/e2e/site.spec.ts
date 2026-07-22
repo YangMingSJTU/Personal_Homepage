@@ -254,10 +254,10 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
     "data-fluid-transition-model",
     "mixed-source-radius-aware-avatar-sink"
   );
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "distance-aware-inward-spiral");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "terminal-spiral-avatar-capture");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "edge-55-interior-45");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "fluid-density-board-handoff");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "velocity-damped-avatar-core");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-reveal-uv-compression");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "tangent-damped-core-absorption");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-idle-cadence", "0.86");
   await expect(fluidCanvas).toHaveAttribute(
     "data-fluid-quality",
@@ -266,7 +266,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-effective-quality", /^(high|balanced|low)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-quality-downgraded", /^(true|false)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-runtime-probe-state", /^(warming|sampling|complete|disabled)$/);
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-duration-ms", "2600");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-duration-ms", "2800");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-injection-count", /^(8|10|12)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", "0.0000");
   await expect(hero.locator("[data-fluid-transition-core]")).toHaveCount(0);
@@ -487,10 +487,10 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
     "data-fluid-transition-model",
     "mixed-source-radius-aware-avatar-sink"
   );
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "distance-aware-inward-spiral");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "terminal-spiral-avatar-capture");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "edge-55-interior-45");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "fluid-density-board-handoff");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "velocity-damped-avatar-core");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-reveal-uv-compression");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "tangent-damped-core-absorption");
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();
