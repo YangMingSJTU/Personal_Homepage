@@ -565,6 +565,8 @@ export default function IntroOpeningHero() {
             data-fluid-transition-distribution="edge-55-interior-45"
             data-fluid-transition-reveal="density-reveal-uv-compression"
             data-fluid-transition-capture="tangent-damped-core-absorption"
+            data-fluid-transition-color="progressive-controlled-palette"
+            data-fluid-transition-palette="cyan-violet-gold-white"
             data-fluid-idle-cadence={FLUID_REFERENCE_IDLE_CADENCE}
             data-fluid-transition-duration-ms={FLUID_TRANSITION_DURATION}
             data-fluid-transition-injection-count={getFluidInjectionCount(renderQuality)}

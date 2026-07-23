@@ -258,6 +258,8 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "edge-55-interior-45");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-reveal-uv-compression");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "tangent-damped-core-absorption");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-color", "progressive-controlled-palette");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-palette", "cyan-violet-gold-white");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-idle-cadence", "0.86");
   await expect(fluidCanvas).toHaveAttribute(
     "data-fluid-quality",
@@ -491,6 +493,8 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "edge-55-interior-45");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-reveal-uv-compression");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "tangent-damped-core-absorption");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-color", "progressive-controlled-palette");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-palette", "cyan-violet-gold-white");
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();

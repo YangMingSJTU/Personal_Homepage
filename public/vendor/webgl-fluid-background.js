@@ -462,6 +462,7 @@ const displayShaderSource = `
     uniform vec2 texelSize;
     uniform float transitionActive;
     uniform float transitionProgress;
+    uniform float transitionAspectRatio;
     uniform vec2 transitionCenter;
     uniform vec3 transitionBackground;
 
@@ -519,6 +520,27 @@ const displayShaderSource = `
         if (transitionActive > 0.5) {
             float materialReveal = smoothstep(0.1, 0.42, transitionProgress);
             float densityReveal = smoothstep(0.12, 0.62, transitionProgress);
+            float colorGradeStrength = smoothstep(0.50, 0.80, transitionProgress);
+            vec3 cyanPalette = vec3(0.2196, 0.7490, 0.8196);
+            vec3 violetPalette = vec3(0.4588, 0.4039, 0.8471);
+            vec3 goldPalette = vec3(0.9176, 0.7961, 0.5098);
+            vec3 whitePalette = vec3(0.9333, 0.9608, 0.9804);
+            float coolPaletteMix = smoothstep(0.08, 0.92, clamp(a, 0.0, 1.0));
+            vec3 controlledPalette = mix(violetPalette, cyanPalette, coolPaletteMix);
+            vec2 coreOffset = vUv - transitionCenter;
+            coreOffset.x *= transitionAspectRatio;
+            float coreDistance = length(coreOffset);
+            float coreColorInfluence = smoothstep(0.78, 0.98, transitionProgress)
+                * (1.0 - smoothstep(0.04, 0.20, coreDistance));
+            vec3 corePalette = mix(goldPalette, whitePalette, smoothstep(0.88, 1.0, transitionProgress));
+            controlledPalette = mix(controlledPalette, corePalette, coreColorInfluence);
+            float paletteMaximum = max(
+                controlledPalette.r,
+                max(controlledPalette.g, controlledPalette.b)
+            );
+            float controlledEnergy = min(a, mix(1.45, 1.15, coreColorInfluence));
+            vec3 gradedColor = controlledPalette * (controlledEnergy / max(paletteMaximum, 0.001));
+            c = mix(c, gradedColor, colorGradeStrength);
             float fluidPresence = smoothstep(0.008, 0.105, a);
             float densityMask = mix(1.0, fluidPresence, densityReveal);
             float edgeDistance = min(
@@ -1147,6 +1169,23 @@ function invokeTransitionCallback(callback, value) {
 	}
 }
 
+const transitionColorPalette = [
+	{ r: 0x38 / 255, g: 0xbf / 255, b: 0xd1 / 255 },
+	{ r: 0x75 / 255, g: 0x67 / 255, b: 0xd8 / 255 },
+	{ r: 0xea / 255, g: 0xcb / 255, b: 0x82 / 255 },
+	{ r: 0xee / 255, g: 0xf5 / 255, b: 0xfa / 255 }
+];
+
+function getTransitionSplatColor(index) {
+	const paletteColor = transitionColorPalette[index % transitionColorPalette.length];
+	const baseIntensity = 0.15;
+	return {
+		r: paletteColor.r * baseIntensity,
+		g: paletteColor.g * baseIntensity,
+		b: paletteColor.b * baseIntensity
+	};
+}
+
 function injectTransitionSplat(state, index) {
 	const edgeCount = Math.round(state.injectionCount * 0.55);
 	let x;
@@ -1201,7 +1240,7 @@ function injectTransitionSplat(state, index) {
 	const force = 860 + state.random() * 520;
 	const dx = (clockwiseX * clockwiseWeight + inwardX * inwardWeight) * force;
 	const dy = (clockwiseY * clockwiseWeight + inwardY * inwardWeight) * force;
-	const color = generateColor();
+	const color = getTransitionSplatColor(index);
 	const colorBoost = 6.5 + state.random() * 3.5;
 	color.r *= colorBoost;
 	color.g *= colorBoost;
@@ -1621,6 +1660,7 @@ function drawDisplay(fbo, width, height) {
 	const transitionBackground = normalizeColor(config.BACK_COLOR);
 	gl.uniform1f(displayMaterial.uniforms.transitionActive, fluidTransition ? 1 : 0);
 	gl.uniform1f(displayMaterial.uniforms.transitionProgress, fluidTransition ? fluidTransition.progress : 0);
+	gl.uniform1f(displayMaterial.uniforms.transitionAspectRatio, canvas.width / Math.max(1, canvas.height));
 	gl.uniform2f(
 		displayMaterial.uniforms.transitionCenter,
 		fluidTransition ? fluidTransition.sinkPoint.x : 0.5,

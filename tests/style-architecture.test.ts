@@ -63,6 +63,8 @@ describe("style architecture", () => {
     expect(introHero).toContain('data-fluid-transition-distribution="edge-55-interior-45"');
     expect(introHero).toContain('data-fluid-transition-reveal="density-reveal-uv-compression"');
     expect(introHero).toContain('data-fluid-transition-capture="tangent-damped-core-absorption"');
+    expect(introHero).toContain('data-fluid-transition-color="progressive-controlled-palette"');
+    expect(introHero).toContain('data-fluid-transition-palette="cyan-violet-gold-white"');
     expect(introHero).not.toContain("data-fluid-transition-core");
     expect(introHero).not.toContain("avatarSrc");
     expect(indexPage).not.toContain("avatarSrc");
@@ -137,6 +139,13 @@ describe("style architecture", () => {
     expect(fluidVendor).toContain("float terminalPull = smoothstep(0.74, 0.97, transitionProgress)");
     expect(fluidVendor).toContain("float compressionScale = mix(1.0, 0.18, terminalPull)");
     expect(fluidVendor).toContain("float alpha = densityMask * sampleBounds * coreOpacity");
+    expect(fluidVendor).toContain("const transitionColorPalette = [");
+    expect(fluidVendor).toContain("getTransitionSplatColor(index)");
+    expect(fluidVendor).toContain("float colorGradeStrength = smoothstep(0.50, 0.80, transitionProgress)");
+    expect(fluidVendor).toContain("float coreColorInfluence = smoothstep(0.78, 0.98, transitionProgress)");
+    expect(fluidVendor).toContain("float controlledEnergy = min(a, mix(1.45, 1.15, coreColorInfluence))");
+    expect(fluidVendor).toContain("c = mix(c, gradedColor, colorGradeStrength)");
+    expect(fluidVendor).not.toContain("const color = generateColor();\n\tconst colorBoost");
     expect(fluidVendor).not.toContain("guidedReveal");
     expect(fluidVendor).not.toContain("spatialMask");
     expect(fluidVendor).not.toContain("safetyEnvelope");
