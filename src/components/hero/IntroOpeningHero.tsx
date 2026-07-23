@@ -34,7 +34,7 @@ declare global {
 type FluidTransitionOptions = {
   duration: number;
   injectionCount: number;
-  sinkPoint: {
+  originPoint: {
     x: number;
     y: number;
   };
@@ -48,7 +48,7 @@ type FluidTransitionController = {
   cancel: () => void;
   duration: number;
   injectionCount: number;
-  updateSinkPoint: (sinkPoint: FluidTransitionOptions["sinkPoint"]) => void;
+  updateOriginPoint: (originPoint: FluidTransitionOptions["originPoint"]) => void;
 };
 
 const simonAKingFluidConfig = {
@@ -215,7 +215,7 @@ export default function IntroOpeningHero() {
     }
 
     const profileAvatar = profileCard?.querySelector(".profile-avatar") as HTMLElement | null;
-    const resolveSinkPoint = (): FluidTransitionOptions["sinkPoint"] => {
+    const resolveOriginPoint = (): FluidTransitionOptions["originPoint"] => {
       const sectionRect = section.getBoundingClientRect();
       const fallbackTarget = {
         x: sectionRect.left + sectionRect.width / 2,
@@ -237,30 +237,30 @@ export default function IntroOpeningHero() {
         : { x: 0.5, y: 0.5 };
     };
     let trackedController: FluidTransitionController | null = null;
-    let sinkUpdateFrame: number | null = null;
-    const updateTrackedSink = () => {
-      sinkUpdateFrame = null;
-      trackedController?.updateSinkPoint(resolveSinkPoint());
+    let originUpdateFrame: number | null = null;
+    const updateTrackedOrigin = () => {
+      originUpdateFrame = null;
+      trackedController?.updateOriginPoint(resolveOriginPoint());
     };
-    const scheduleSinkUpdate = () => {
-      if (sinkUpdateFrame !== null) return;
-      sinkUpdateFrame = window.requestAnimationFrame(updateTrackedSink);
+    const scheduleOriginUpdate = () => {
+      if (originUpdateFrame !== null) return;
+      originUpdateFrame = window.requestAnimationFrame(updateTrackedOrigin);
     };
-    const stopSinkTracking = () => {
-      if (sinkUpdateFrame !== null) window.cancelAnimationFrame(sinkUpdateFrame);
-      sinkUpdateFrame = null;
-      window.removeEventListener("resize", scheduleSinkUpdate);
-      window.removeEventListener("orientationchange", scheduleSinkUpdate);
+    const stopOriginTracking = () => {
+      if (originUpdateFrame !== null) window.cancelAnimationFrame(originUpdateFrame);
+      originUpdateFrame = null;
+      window.removeEventListener("resize", scheduleOriginUpdate);
+      window.removeEventListener("orientationchange", scheduleOriginUpdate);
     };
-    window.addEventListener("resize", scheduleSinkUpdate);
-    window.addEventListener("orientationchange", scheduleSinkUpdate);
+    window.addEventListener("resize", scheduleOriginUpdate);
+    window.addEventListener("orientationchange", scheduleOriginUpdate);
     setFluidTransitionState("running");
     setFluidTransitionPhase("surge");
     handoffPreparedRef.current = false;
     const controller = startTransition({
       duration: FLUID_TRANSITION_DURATION,
       injectionCount: getFluidInjectionCount(renderQualityRef.current),
-      sinkPoint: resolveSinkPoint(),
+      originPoint: resolveOriginPoint(),
       timeline: FLUID_TRANSITION_TIMELINE,
       onPhaseChange: setFluidTransitionPhase,
       onProgress: (progress) => {
@@ -286,7 +286,7 @@ export default function IntroOpeningHero() {
         }
       },
       onComplete: () => {
-        stopSinkTracking();
+        stopOriginTracking();
         fluidTransitionControllerRef.current = null;
         setFluidTransitionState("done");
         setFluidTransitionPhase("done");
@@ -318,7 +318,7 @@ export default function IntroOpeningHero() {
       }
     });
     if (!controller) {
-      stopSinkTracking();
+      stopOriginTracking();
       if (profileCard) {
         delete profileCard.dataset.fluidHandoff;
         profileCard.style.removeProperty("--fluid-avatar-opacity");
@@ -333,7 +333,7 @@ export default function IntroOpeningHero() {
     trackedController = {
       ...controller,
       cancel() {
-        stopSinkTracking();
+        stopOriginTracking();
         controller.cancel();
       }
     };
@@ -544,7 +544,7 @@ export default function IntroOpeningHero() {
         className="content content-intro"
         aria-label="进入动画"
         data-motion-scene="intro-opening"
-        data-transition-visual="clockwise-fluid-vortex-reveal"
+        data-transition-visual="irregular-fluid-ebb-reveal"
         data-render-quality={renderQuality}
       >
         <div className="content-inner">
@@ -560,11 +560,12 @@ export default function IntroOpeningHero() {
             data-fluid-config-source="simonaking-homepage"
             data-fluid-transition-state={fluidTransitionState}
             data-fluid-transition-phase={fluidTransitionPhase}
-            data-fluid-transition-model="single-field-fluid-absorption"
-            data-fluid-transition-flow="bounded-contraction-spiral-capture"
-            data-fluid-transition-distribution="edge-55-interior-45"
-            data-fluid-transition-reveal="density-sink-board-handoff"
-            data-fluid-transition-capture="physical-dye-core-absorption"
+            data-fluid-transition-model="irregular-fluid-ebb"
+            data-fluid-transition-flow="clockwise-outward-edge-drain"
+            data-fluid-transition-direction="outward"
+            data-fluid-transition-distribution="existing-fluid-no-injection"
+            data-fluid-transition-reveal="density-evacuation-board-reveal"
+            data-fluid-transition-capture="irregular-front-edge-absorption"
             data-fluid-transition-color="hue-preserving-tone-map"
             data-fluid-transition-palette="original-fluid-hues"
             data-fluid-idle-cadence={FLUID_REFERENCE_IDLE_CADENCE}

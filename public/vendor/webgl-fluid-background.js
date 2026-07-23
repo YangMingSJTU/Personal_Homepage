@@ -387,14 +387,24 @@ const transitionVelocityShader = compileShader(gl.FRAGMENT_SHADER, `
         float distanceToCenter = max(length(physicalOffset), 0.001);
         vec2 radial = physicalOffset / distanceToCenter;
         vec2 clockwise = vec2(radial.y, -radial.x);
-        float contractionRate = mix(0.72, 2.35, smoothstep(0.06, 0.90, progress));
-        float angularRate = mix(0.58, 0.05, smoothstep(0.28, 0.92, progress));
-        float coreGate = smoothstep(0.012, 0.05, distanceToCenter);
+        float tideProgress = smoothstep(0.06, 0.90, progress);
+        float terminalEase = mix(1.0, 0.34, smoothstep(0.86, 1.0, progress));
+        float outwardRate = mix(0.34, 1.24, tideProgress) * terminalEase;
+        float angularRate = mix(0.24, 0.035, smoothstep(0.28, 0.92, progress));
+        float radialX2 = radial.x * radial.x;
+        float radialY2 = radial.y * radial.y;
+        float harmonicThree = radial.x * (radialX2 - 3.0 * radialY2);
+        float harmonicFour = 4.0 * radial.x * radial.y * (radialX2 - radialY2);
+        float variationBlend = smoothstep(0.18, 0.82, progress);
+        float flowVariation = 1.0
+            + harmonicThree * mix(0.12, -0.08, variationBlend)
+            + harmonicFour * 0.055;
+        float sourceGate = smoothstep(0.014, 0.065, distanceToCenter);
         vec2 targetVelocity = (
-            -radial * contractionRate + clockwise * angularRate
-        ) * distanceToCenter * resolutionScale * coreGate;
-        float steeringRate = mix(2.8, 9.0, smoothstep(0.12, 0.90, progress));
-        float steering = 1.0 - exp(-steeringRate * dt);
+            radial * outwardRate * flowVariation + clockwise * angularRate
+        ) * distanceToCenter * resolutionScale * sourceGate;
+        float steeringRate = mix(1.8, 5.2, smoothstep(0.16, 0.90, progress));
+        float steering = (1.0 - exp(-steeringRate * dt)) * smoothstep(0.03, 0.20, progress);
         velocity = mix(velocity, targetVelocity, steering);
 
         gl_FragColor = vec4(velocity, 0.0, 1.0);
@@ -417,9 +427,31 @@ const transitionDensityShader = compileShader(gl.FRAGMENT_SHADER, `
         vec2 offset = vUv - transitionCenter;
         offset.x *= aspectRatio;
         float distanceToCenter = length(offset);
-        float captureProgress = smoothstep(0.46, 0.94, progress);
-        float coreCapture = 1.0 - smoothstep(0.03, 0.10, distanceToCenter);
-        float absorptionRate = coreCapture * mix(0.0, 14.0, captureProgress);
+        vec2 direction = offset / max(distanceToCenter, 0.0001);
+        float directionX2 = direction.x * direction.x;
+        float directionY2 = direction.y * direction.y;
+        float harmonicThree = direction.x * (directionX2 - 3.0 * directionY2);
+        float harmonicFour = 4.0 * direction.x * direction.y * (directionX2 - directionY2);
+        float tideProgress = smoothstep(0.10, 0.94, progress);
+        float easedTide = tideProgress * tideProgress * (3.0 - 2.0 * tideProgress);
+        float viewportRadius = 0.5 * sqrt(aspectRatio * aspectRatio + 1.0) + 0.14;
+        float irregularity = (
+            harmonicThree * mix(0.055, -0.035, tideProgress)
+            + harmonicFour * 0.026
+            + mix(direction.x, direction.y, tideProgress) * 0.016
+        ) * smoothstep(0.02, 0.42, tideProgress);
+        float frontRadius = mix(0.012, viewportRadius, easedTide) + irregularity;
+        float frontSoftness = mix(0.026, 0.115, tideProgress);
+        float evacuated = 1.0 - smoothstep(
+            frontRadius - frontSoftness,
+            frontRadius + frontSoftness,
+            distanceToCenter
+        );
+        float edgeDistance = min(min(vUv.x, vUv.y), min(1.0 - vUv.x, 1.0 - vUv.y));
+        float edgeCapture = (1.0 - smoothstep(0.018, 0.13, edgeDistance))
+            * smoothstep(0.68, 0.98, progress);
+        float absorptionRate = evacuated * mix(0.0, 15.0, smoothstep(0.08, 0.34, progress))
+            + edgeCapture * 11.0;
         float retention = exp(-absorptionRate * dt);
         gl_FragColor = density * retention;
     }
@@ -470,8 +502,6 @@ const displayShaderSource = `
     uniform vec2 texelSize;
     uniform float transitionActive;
     uniform float transitionProgress;
-    uniform float transitionAspectRatio;
-    uniform vec2 transitionCenter;
     uniform vec3 transitionBackground;
 
     vec3 linearToGamma (vec3 color) {
@@ -520,19 +550,11 @@ const displayShaderSource = `
 
         float a = max(c.r, max(c.g, c.b));
         if (transitionActive > 0.5) {
-            float materialReveal = smoothstep(0.1, 0.42, transitionProgress);
-            float densityReveal = smoothstep(0.12, 0.62, transitionProgress);
-            vec2 coreOffset = vUv - transitionCenter;
-            coreOffset.x *= transitionAspectRatio;
-            float coreDistance = length(coreOffset);
-            float coreColorInfluence = smoothstep(0.54, 0.94, transitionProgress)
-                * (1.0 - smoothstep(0.03, 0.14, coreDistance));
-            float luminance = dot(c, vec3(0.2126, 0.7152, 0.0722));
-            float desaturation = coreColorInfluence * 0.20;
-            c = mix(c, vec3(luminance), desaturation);
+            float materialReveal = smoothstep(0.04, 0.24, transitionProgress);
+            float densityReveal = smoothstep(0.08, 0.40, transitionProgress);
             float colorEnergy = max(c.r, max(c.g, c.b));
-            float toneMappedEnergy = colorEnergy / (1.0 + 0.35 * colorEnergy);
-            float toneMapStrength = smoothstep(0.50, 0.86, transitionProgress);
+            float toneMappedEnergy = colorEnergy / (1.0 + 0.22 * colorEnergy);
+            float toneMapStrength = smoothstep(0.56, 0.90, transitionProgress);
             float toneMapScale = toneMappedEnergy / max(colorEnergy, 0.001);
             c *= mix(1.0, toneMapScale, toneMapStrength);
             float fluidPresence = smoothstep(0.008, 0.105, a);
@@ -1100,42 +1122,29 @@ const runtimeQualityProbe = {
 };
 
 const defaultTransitionTimeline = {
-	surgeEnd: 0.2,
-	vortexEnd: 0.56,
-	absorbEnd: 0.92
+	surgeEnd: 0.14,
+	vortexEnd: 0.72,
+	absorbEnd: 0.94
 };
 
 function clamp01(value) {
 	return Math.min(1, Math.max(0, value));
 }
 
-function smoothProgress(value) {
-	const normalized = clamp01(value);
-	return normalized * normalized * (3 - 2 * normalized);
-}
-
-function normalizeTransitionSinkPoint(sinkPoint) {
-	const requestedX = Number(sinkPoint?.x);
-	const requestedY = Number(sinkPoint?.y);
+function normalizeTransitionOriginPoint(originPoint) {
+	const requestedX = Number(originPoint?.x);
+	const requestedY = Number(originPoint?.y);
 	return {
 		x: clamp01(Number.isFinite(requestedX) ? requestedX : 0.5),
 		y: clamp01(Number.isFinite(requestedY) ? requestedY : 0.5)
 	};
 }
 
-function updateTransitionSinkPoint(state, sinkPoint) {
+function updateTransitionOriginPoint(state, originPoint) {
 	if (!state || state.completed) return;
-	state.sinkPoint = normalizeTransitionSinkPoint(sinkPoint);
-	canvas.dataset.fluidTransitionSinkX = state.sinkPoint.x.toFixed(4);
-	canvas.dataset.fluidTransitionSinkY = state.sinkPoint.y.toFixed(4);
-}
-
-function createSeededTransitionRandom(seed) {
-	let value = seed >>> 0;
-	return () => {
-		value = (value * 1664525 + 1013904223) >>> 0;
-		return value / 4294967296;
-	};
+	state.originPoint = normalizeTransitionOriginPoint(originPoint);
+	canvas.dataset.fluidTransitionOriginX = state.originPoint.x.toFixed(4);
+	canvas.dataset.fluidTransitionOriginY = state.originPoint.y.toFixed(4);
 }
 
 function resolveFluidTransitionPhase(progress, timeline) {
@@ -1144,12 +1153,6 @@ function resolveFluidTransitionPhase(progress, timeline) {
 	if (progress >= timeline.vortexEnd) return 'absorb';
 	if (progress >= timeline.surgeEnd) return 'vortex';
 	return 'surge';
-}
-
-function getInjectedTransitionCount(progress, total, surgeEnd) {
-	if (total <= 0 || progress <= 0) return 0;
-	const normalized = clamp01(progress / surgeEnd);
-	return Math.min(total, Math.floor(smoothProgress(normalized) * total + Number.EPSILON));
 }
 
 function invokeTransitionCallback(callback, value) {
@@ -1162,81 +1165,10 @@ function invokeTransitionCallback(callback, value) {
 	}
 }
 
-function injectTransitionSplat(state, index) {
-	const edgeCount = Math.round(state.injectionCount * 0.55);
-	let x;
-	let y;
-	if (index < edgeCount) {
-		const edge = index % 4;
-		const alongEdge = 0.06 + state.random() * 0.88;
-		const inset = 0.055 + state.random() * 0.065;
-		if (edge === 0) {
-			x = alongEdge;
-			y = 1 - inset;
-		}
-		else if (edge === 1) {
-			x = 1 - inset;
-			y = alongEdge;
-		}
-		else if (edge === 2) {
-			x = alongEdge;
-			y = inset;
-		}
-		else {
-			x = inset;
-			y = alongEdge;
-		}
-	}
-	else {
-		x = 0.12 + state.random() * 0.76;
-		y = 0.12 + state.random() * 0.76;
-		if (Math.hypot(x - state.sinkPoint.x, y - state.sinkPoint.y) < 0.19) {
-			x = x < state.sinkPoint.x
-				? Math.max(0.12, state.sinkPoint.x - 0.28)
-				: Math.min(0.88, state.sinkPoint.x + 0.28);
-			y = y < state.sinkPoint.y
-				? Math.max(0.12, state.sinkPoint.y - 0.28)
-				: Math.min(0.88, state.sinkPoint.y + 0.28);
-		}
-	}
-
-	const aspectRatio = canvas.width / Math.max(1, canvas.height);
-	const offsetX = (x - state.sinkPoint.x) * aspectRatio;
-	const offsetY = y - state.sinkPoint.y;
-	const distance = Math.max(0.001, Math.hypot(offsetX, offsetY));
-	const radialX = offsetX / distance;
-	const radialY = offsetY / distance;
-	const clockwiseX = radialY / aspectRatio;
-	const clockwiseY = -radialX;
-	const inwardX = -radialX / aspectRatio;
-	const inwardY = -radialY;
-	const farMix = clamp01((distance - 0.28) / 0.82);
-	const clockwiseWeight = 0.72 - farMix * 0.26;
-	const inwardWeight = 0.74 + farMix * 0.2;
-	const force = 18 + state.random() * 14;
-	const dx = (clockwiseX * clockwiseWeight + inwardX * inwardWeight) * force;
-	const dy = (clockwiseY * clockwiseWeight + inwardY * inwardWeight) * force;
-	const color = generateColor();
-	const colorBoost = 1.5 + state.random() * 0.7;
-	color.r *= colorBoost;
-	color.g *= colorBoost;
-	color.b *= colorBoost;
-	splat(x, y, dx, dy, color);
-}
-
 function updateFluidTransition(now) {
 	const state = fluidTransition;
 	if (!state) return null;
 	state.progress = clamp01((now - state.startedAt) / state.duration);
-	const targetInjectedCount = getInjectedTransitionCount(
-		state.progress,
-		state.injectionCount,
-		state.timeline.surgeEnd
-	);
-	while (state.injectedCount < targetInjectedCount) {
-		injectTransitionSplat(state, state.injectedCount);
-		state.injectedCount += 1;
-	}
 
 	const phase = resolveFluidTransitionPhase(state.progress, state.timeline);
 	if (phase !== state.phase) {
@@ -1245,7 +1177,7 @@ function updateFluidTransition(now) {
 		invokeTransitionCallback(state.onPhaseChange, phase);
 	}
 	canvas.dataset.fluidTransitionProgress = state.progress.toFixed(4);
-	canvas.dataset.fluidTransitionInjectedCount = String(state.injectedCount);
+	canvas.dataset.fluidTransitionInjectedCount = '0';
 	invokeTransitionCallback(state.onProgress, state.progress);
 	return state;
 }
@@ -1366,19 +1298,20 @@ window.__stopWebglFluidBackground = () => {
 window.__startWebglFluidTransition = (options = {}) => {
 	if (!initBackground.loaded || stopped || config.PAUSED) return null;
 	const duration = Math.max(600, Number(options.duration) || 2800);
-	const injectionCount = Math.max(1, Math.round(Number(options.injectionCount) || 10));
-	const sinkPoint = normalizeTransitionSinkPoint(options.sinkPoint);
+	const requestedInjectionCount = Number(options.injectionCount);
+	const injectionCount = Number.isFinite(requestedInjectionCount)
+		? Math.max(0, Math.round(requestedInjectionCount))
+		: 0;
+	const originPoint = normalizeTransitionOriginPoint(options.originPoint);
 	const timeline = Object.assign({}, defaultTransitionTimeline, options.timeline || {});
 	const state = {
 		startedAt: performance.now(),
 		duration,
 		injectionCount,
-		injectedCount: 0,
-		sinkPoint,
+		originPoint,
 		progress: 0,
 		phase: 'surge',
 		completed: false,
-		random: createSeededTransitionRandom((canvas.width * 73856093) ^ (canvas.height * 19349663) ^ injectionCount),
 		timeline,
 		onProgress: options.onProgress,
 		onPhaseChange: options.onPhaseChange,
@@ -1390,15 +1323,15 @@ window.__startWebglFluidTransition = (options = {}) => {
 	canvas.dataset.fluidTransitionProgress = '0.0000';
 	canvas.dataset.fluidTransitionInjectedCount = '0';
 	canvas.dataset.fluidTransitionInjectionCount = String(injectionCount);
-	canvas.dataset.fluidTransitionSinkX = sinkPoint.x.toFixed(4);
-	canvas.dataset.fluidTransitionSinkY = sinkPoint.y.toFixed(4);
+	canvas.dataset.fluidTransitionOriginX = originPoint.x.toFixed(4);
+	canvas.dataset.fluidTransitionOriginY = originPoint.y.toFixed(4);
 	invokeTransitionCallback(state.onPhaseChange, 'surge');
 	return {
 		duration,
 		injectionCount,
-		updateSinkPoint(sinkPoint) {
+		updateOriginPoint(originPoint) {
 			if (fluidTransition !== state) return;
-			updateTransitionSinkPoint(state, sinkPoint);
+			updateTransitionOriginPoint(state, originPoint);
 		},
 		cancel() {
 			if (fluidTransition !== state) return;
@@ -1545,8 +1478,8 @@ function step(dt, activeTransition) {
 		gl.uniform1f(transitionVelocityProgram.uniforms.resolutionScale, velocity.height);
 		gl.uniform2f(
 			transitionVelocityProgram.uniforms.transitionCenter,
-			activeTransition.sinkPoint.x,
-			activeTransition.sinkPoint.y
+			activeTransition.originPoint.x,
+			activeTransition.originPoint.y
 		);
 		blit(velocity.write.fbo);
 		velocity.swap();
@@ -1584,8 +1517,8 @@ function step(dt, activeTransition) {
 		gl.uniform1f(transitionDensityProgram.uniforms.dt, dt);
 		gl.uniform2f(
 			transitionDensityProgram.uniforms.transitionCenter,
-			activeTransition.sinkPoint.x,
-			activeTransition.sinkPoint.y
+			activeTransition.originPoint.x,
+			activeTransition.originPoint.y
 		);
 		blit(dye.write.fbo);
 		dye.swap();
@@ -1654,12 +1587,6 @@ function drawDisplay(fbo, width, height) {
 	const transitionBackground = normalizeColor(config.BACK_COLOR);
 	gl.uniform1f(displayMaterial.uniforms.transitionActive, fluidTransition ? 1 : 0);
 	gl.uniform1f(displayMaterial.uniforms.transitionProgress, fluidTransition ? fluidTransition.progress : 0);
-	gl.uniform1f(displayMaterial.uniforms.transitionAspectRatio, canvas.width / Math.max(1, canvas.height));
-	gl.uniform2f(
-		displayMaterial.uniforms.transitionCenter,
-		fluidTransition ? fluidTransition.sinkPoint.x : 0.5,
-		fluidTransition ? fluidTransition.sinkPoint.y : 0.5
-	);
 	gl.uniform3f(
 		displayMaterial.uniforms.transitionBackground,
 		transitionBackground.r,

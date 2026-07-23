@@ -14,7 +14,7 @@ async function getNumericAttribute(locator: Locator, name: string) {
   return Number(await locator.getAttribute(name));
 }
 
-async function expectFluidSinkToMatchAvatar(page: Page) {
+async function expectFluidOriginToMatchAvatar(page: Page) {
   await expect
     .poll(() =>
       page.evaluate(() => {
@@ -23,14 +23,14 @@ async function expectFluidSinkToMatchAvatar(page: Page) {
         if (!canvas || !avatar) return Number.POSITIVE_INFINITY;
         const canvasBox = canvas.getBoundingClientRect();
         const avatarBox = avatar.getBoundingClientRect();
-        const sinkX = Number(canvas.dataset.fluidTransitionSinkX);
-        const sinkY = Number(canvas.dataset.fluidTransitionSinkY);
-        if (!Number.isFinite(sinkX) || !Number.isFinite(sinkY)) return Number.POSITIVE_INFINITY;
-        const sinkPageX = canvasBox.x + sinkX * canvasBox.width;
-        const sinkPageY = canvasBox.y + (1 - sinkY) * canvasBox.height;
+        const originX = Number(canvas.dataset.fluidTransitionOriginX);
+        const originY = Number(canvas.dataset.fluidTransitionOriginY);
+        if (!Number.isFinite(originX) || !Number.isFinite(originY)) return Number.POSITIVE_INFINITY;
+        const originPageX = canvasBox.x + originX * canvasBox.width;
+        const originPageY = canvasBox.y + (1 - originY) * canvasBox.height;
         const avatarCenterX = avatarBox.x + avatarBox.width / 2;
         const avatarCenterY = avatarBox.y + avatarBox.height / 2;
-        return Math.max(Math.abs(sinkPageX - avatarCenterX), Math.abs(sinkPageY - avatarCenterY));
+        return Math.max(Math.abs(originPageX - avatarCenterX), Math.abs(originPageY - avatarCenterY));
       })
     )
     .toBeLessThan(2);
@@ -156,7 +156,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(page.locator("html")).toHaveAttribute("data-home-render-phase", "intro");
   await expect(page.locator("html")).toHaveAttribute("data-render-quality", /^(high|balanced|low)$/);
   await expect(hero).toHaveAttribute("data-motion-scene", "intro-opening");
-  await expect(hero).toHaveAttribute("data-transition-visual", "clockwise-fluid-vortex-reveal");
+  await expect(hero).toHaveAttribute("data-transition-visual", "irregular-fluid-ebb-reveal");
   await expect(hero.locator(".content-inner > canvas#background[aria-label='进入动画背景']")).toHaveAttribute(
     "data-visual",
     "webgl-fluid-opening"
@@ -257,12 +257,13 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", "idle");
   await expect(fluidCanvas).toHaveAttribute(
     "data-fluid-transition-model",
-    "single-field-fluid-absorption"
+    "irregular-fluid-ebb"
   );
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "bounded-contraction-spiral-capture");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "edge-55-interior-45");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-sink-board-handoff");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "physical-dye-core-absorption");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "clockwise-outward-edge-drain");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-direction", "outward");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "existing-fluid-no-injection");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-evacuation-board-reveal");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "irregular-front-edge-absorption");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-color", "hue-preserving-tone-map");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-palette", "original-fluid-hues");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-idle-cadence", "0.86");
@@ -274,7 +275,7 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-quality-downgraded", /^(true|false)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-runtime-probe-state", /^(warming|sampling|complete|disabled)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-duration-ms", "2800");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-injection-count", /^(8|10|12)$/);
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-injection-count", "0");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", "0.0000");
   await expect(hero.locator("[data-fluid-transition-core]")).toHaveCount(0);
   await expect(hero.locator("[data-slide-transition-edge]")).toHaveCount(0);
@@ -321,11 +322,11 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "running");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", /^(surge|vortex|absorb|reveal)$/);
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-progress", /^0\.\d{4}$/);
-  await expect.poll(() => getNumericAttribute(fluidCanvas, "data-fluid-transition-injected-count")).toBeGreaterThan(0);
-  await expectFluidSinkToMatchAvatar(page);
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-injected-count", "0");
+  await expectFluidOriginToMatchAvatar(page);
   if (test.info().project.name === "desktop") {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await expectFluidSinkToMatchAvatar(page);
+    await expectFluidOriginToMatchAvatar(page);
   }
   const transitionAvatarBox = await profileAvatar.boundingBox();
   expect(transitionAvatarBox).not.toBeNull();
@@ -492,12 +493,13 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "running");
   await expect(fluidCanvas).toHaveAttribute(
     "data-fluid-transition-model",
-    "single-field-fluid-absorption"
+    "irregular-fluid-ebb"
   );
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "bounded-contraction-spiral-capture");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "edge-55-interior-45");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-sink-board-handoff");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "physical-dye-core-absorption");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "clockwise-outward-edge-drain");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-direction", "outward");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "existing-fluid-no-injection");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-evacuation-board-reveal");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "irregular-front-edge-absorption");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-color", "hue-preserving-tone-map");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-palette", "original-fluid-hues");
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);

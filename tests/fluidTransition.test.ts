@@ -6,7 +6,6 @@ import {
   FLUID_TRANSITION_DURATION,
   FLUID_TRANSITION_TIMELINE,
   getFluidInjectionCount,
-  getInjectedFluidCount,
   resolveFluidAvatarOpacity,
   resolveFluidTransitionPhase,
   resolveFluidTransitionProgress
@@ -18,7 +17,7 @@ describe("fluid vortex transition", () => {
   });
 
   it("uses a continuous surge, vortex, absorption, and reveal timeline", () => {
-    expect(FLUID_TRANSITION_TIMELINE).toEqual({ surgeEnd: 0.2, vortexEnd: 0.56, absorbEnd: 0.92 });
+    expect(FLUID_TRANSITION_TIMELINE).toEqual({ surgeEnd: 0.14, vortexEnd: 0.72, absorbEnd: 0.94 });
     expect(resolveFluidTransitionPhase(0)).toBe("idle");
     expect(resolveFluidTransitionPhase(0.01)).toBe("surge");
     expect(resolveFluidTransitionPhase(FLUID_TRANSITION_TIMELINE.surgeEnd)).toBe("vortex");
@@ -35,13 +34,10 @@ describe("fluid vortex transition", () => {
     expect(FLUID_TRANSITION_DURATION).toBe(2800);
   });
 
-  it("stages eight to twelve deterministic fluid injections by quality", () => {
-    expect(getFluidInjectionCount("low")).toBe(8);
-    expect(getFluidInjectionCount("balanced")).toBe(10);
-    expect(getFluidInjectionCount("high")).toBe(12);
-    expect(getInjectedFluidCount(0, 10)).toBe(0);
-    expect(getInjectedFluidCount(FLUID_TRANSITION_TIMELINE.surgeEnd, 10)).toBe(10);
-    expect(getInjectedFluidCount(1, 10)).toBe(10);
+  it("reuses the existing fluid field without transition splats", () => {
+    expect(getFluidInjectionCount("low")).toBe(0);
+    expect(getFluidInjectionCount("balanced")).toBe(0);
+    expect(getFluidInjectionCount("high")).toBe(0);
   });
 
   it("reveals the single profile avatar monotonically without overshoot", () => {
