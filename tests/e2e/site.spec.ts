@@ -264,6 +264,8 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "existing-fluid-no-injection");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-evacuation-board-reveal");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "irregular-front-edge-absorption");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-density-pass", "fused-advection");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-post-process-mode", "interleaved-cache");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-color", "hue-preserving-tone-map");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-palette", "original-fluid-hues");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-idle-cadence", "0.86");
@@ -500,6 +502,8 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "existing-fluid-no-injection");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-evacuation-board-reveal");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "irregular-front-edge-absorption");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-density-pass", "fused-advection");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-post-process-mode", "interleaved-cache");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-color", "hue-preserving-tone-map");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-palette", "original-fluid-hues");
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);

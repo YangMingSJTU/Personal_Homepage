@@ -77,7 +77,8 @@ const simonAKingFluidConfig = {
   BLOOM_SOFT_KNEE: 0.7,
   SUNRAYS: true,
   SUNRAYS_RESOLUTION: 196,
-  SUNRAYS_WEIGHT: 1
+  SUNRAYS_WEIGHT: 1,
+  TEMPORAL_POST_PROCESS: true
 };
 
 function getFluidConfig(quality: RenderQuality) {
@@ -566,6 +567,8 @@ export default function IntroOpeningHero() {
             data-fluid-transition-distribution="existing-fluid-no-injection"
             data-fluid-transition-reveal="density-evacuation-board-reveal"
             data-fluid-transition-capture="irregular-front-edge-absorption"
+            data-fluid-transition-density-pass="fused-advection"
+            data-fluid-post-process-mode="interleaved-cache"
             data-fluid-transition-color="hue-preserving-tone-map"
             data-fluid-transition-palette="original-fluid-hues"
             data-fluid-idle-cadence={FLUID_REFERENCE_IDLE_CADENCE}

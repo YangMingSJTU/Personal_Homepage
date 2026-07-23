@@ -55,6 +55,7 @@ const defaultFluidConfig = {
 	SUNRAYS: true,
 	SUNRAYS_RESOLUTION: 196,
 	SUNRAYS_WEIGHT: 1,
+	TEMPORAL_POST_PROCESS: true,
 	RENDER_QUALITY: 'balanced',
 	RUNTIME_QUALITY_FALLBACK: null,
 	RUNTIME_QUALITY_WARMUP_FRAMES: 12,
@@ -411,52 +412,6 @@ const transitionVelocityShader = compileShader(gl.FRAGMENT_SHADER, `
     }
 `);
 
-const transitionDensityShader = compileShader(gl.FRAGMENT_SHADER, `
-    precision highp float;
-    precision highp sampler2D;
-
-    varying vec2 vUv;
-    uniform sampler2D uTexture;
-    uniform float aspectRatio;
-    uniform float progress;
-    uniform float dt;
-    uniform vec2 transitionCenter;
-
-    void main () {
-        vec4 density = texture2D(uTexture, vUv);
-        vec2 offset = vUv - transitionCenter;
-        offset.x *= aspectRatio;
-        float distanceToCenter = length(offset);
-        vec2 direction = offset / max(distanceToCenter, 0.0001);
-        float directionX2 = direction.x * direction.x;
-        float directionY2 = direction.y * direction.y;
-        float harmonicThree = direction.x * (directionX2 - 3.0 * directionY2);
-        float harmonicFour = 4.0 * direction.x * direction.y * (directionX2 - directionY2);
-        float tideProgress = smoothstep(0.10, 0.94, progress);
-        float easedTide = tideProgress * tideProgress * (3.0 - 2.0 * tideProgress);
-        float viewportRadius = 0.5 * sqrt(aspectRatio * aspectRatio + 1.0) + 0.14;
-        float irregularity = (
-            harmonicThree * mix(0.055, -0.035, tideProgress)
-            + harmonicFour * 0.026
-            + mix(direction.x, direction.y, tideProgress) * 0.016
-        ) * smoothstep(0.02, 0.42, tideProgress);
-        float frontRadius = mix(0.012, viewportRadius, easedTide) + irregularity;
-        float frontSoftness = mix(0.026, 0.115, tideProgress);
-        float evacuated = 1.0 - smoothstep(
-            frontRadius - frontSoftness,
-            frontRadius + frontSoftness,
-            distanceToCenter
-        );
-        float edgeDistance = min(min(vUv.x, vUv.y), min(1.0 - vUv.x, 1.0 - vUv.y));
-        float edgeCapture = (1.0 - smoothstep(0.018, 0.13, edgeDistance))
-            * smoothstep(0.68, 0.98, progress);
-        float absorptionRate = evacuated * mix(0.0, 15.0, smoothstep(0.08, 0.34, progress))
-            + edgeCapture * 11.0;
-        float retention = exp(-absorptionRate * dt);
-        gl_FragColor = density * retention;
-    }
-`);
-
 const colorShader = compileShader(gl.FRAGMENT_SHADER, `
     precision mediump float;
 
@@ -700,7 +655,7 @@ const splatShader = compileShader(gl.FRAGMENT_SHADER, `
     }
 `);
 
-const advectionShader = compileShader(gl.FRAGMENT_SHADER, `
+const advectionShaderSource = `
     precision highp float;
     precision highp sampler2D;
 
@@ -712,6 +667,12 @@ const advectionShader = compileShader(gl.FRAGMENT_SHADER, `
     uniform float dt;
     uniform float dissipation;
     uniform float openBoundary;
+    #ifdef EBB
+    uniform float ebbAspectRatio;
+    uniform float ebbProgress;
+    uniform float ebbDt;
+    uniform vec2 ebbCenter;
+    #endif
 
     vec4 bilerp (sampler2D sam, vec2 uv, vec2 tsize) {
         vec2 st = uv / tsize - 0.5;
@@ -727,6 +688,40 @@ const advectionShader = compileShader(gl.FRAGMENT_SHADER, `
         return mix(mix(a, b, fuv.x), mix(c, d, fuv.x), fuv.y);
     }
 
+    #ifdef EBB
+    vec4 applyEbbRetention (vec4 density) {
+        vec2 offset = vUv - ebbCenter;
+        offset.x *= ebbAspectRatio;
+        float distanceToCenter = length(offset);
+        vec2 direction = offset / max(distanceToCenter, 0.0001);
+        float directionX2 = direction.x * direction.x;
+        float directionY2 = direction.y * direction.y;
+        float harmonicThree = direction.x * (directionX2 - 3.0 * directionY2);
+        float harmonicFour = 4.0 * direction.x * direction.y * (directionX2 - directionY2);
+        float tideProgress = smoothstep(0.10, 0.94, ebbProgress);
+        float easedTide = tideProgress * tideProgress * (3.0 - 2.0 * tideProgress);
+        float viewportRadius = 0.5 * sqrt(ebbAspectRatio * ebbAspectRatio + 1.0) + 0.14;
+        float irregularity = (
+            harmonicThree * mix(0.055, -0.035, tideProgress)
+            + harmonicFour * 0.026
+            + mix(direction.x, direction.y, tideProgress) * 0.016
+        ) * smoothstep(0.02, 0.42, tideProgress);
+        float frontRadius = mix(0.012, viewportRadius, easedTide) + irregularity;
+        float frontSoftness = mix(0.026, 0.115, tideProgress);
+        float evacuated = 1.0 - smoothstep(
+            frontRadius - frontSoftness,
+            frontRadius + frontSoftness,
+            distanceToCenter
+        );
+        float edgeDistance = min(min(vUv.x, vUv.y), min(1.0 - vUv.x, 1.0 - vUv.y));
+        float edgeCapture = (1.0 - smoothstep(0.018, 0.13, edgeDistance))
+            * smoothstep(0.68, 0.98, ebbProgress);
+        float absorptionRate = evacuated * mix(0.0, 15.0, smoothstep(0.08, 0.34, ebbProgress))
+            + edgeCapture * 11.0;
+        return density * exp(-absorptionRate * ebbDt);
+    }
+    #endif
+
     void main () {
     #ifdef MANUAL_FILTERING
         vec2 coord = vUv - dt * bilerp(uVelocity, vUv, texelSize).xy * texelSize;
@@ -741,10 +736,16 @@ const advectionShader = compileShader(gl.FRAGMENT_SHADER, `
             * step(coord.y, 1.0);
         result *= mix(1.0, withinBounds, openBoundary);
         float decay = 1.0 + dissipation * dt;
-        gl_FragColor = result / decay;
-    }`,
-	ext.supportLinearFiltering ? null : ['MANUAL_FILTERING']
-);
+        result /= decay;
+    #ifdef EBB
+        result = applyEbbRetention(result);
+    #endif
+        gl_FragColor = result;
+    }`;
+
+const advectionKeywords = ext.supportLinearFiltering ? [] : ['MANUAL_FILTERING'];
+const advectionShader = compileShader(gl.FRAGMENT_SHADER, advectionShaderSource, advectionKeywords);
+const ebbAdvectionShader = compileShader(gl.FRAGMENT_SHADER, advectionShaderSource, [...advectionKeywords, 'EBB']);
 
 const divergenceShader = compileShader(gl.FRAGMENT_SHADER, `
     precision mediump float;
@@ -905,11 +906,14 @@ let vendorAssetBase = (() => {
 
 let ditheringTexture = createTextureAsync(`${vendorAssetBase}background.png`);
 
+let postProcessFrame = 0;
+let bloomReady = false;
+let sunraysReady = false;
+
 const blurProgram = new Program(blurVertexShader, blurShader);
 const copyProgram = new Program(baseVertexShader, copyShader);
 const clearProgram = new Program(baseVertexShader, clearShader);
 const transitionVelocityProgram = new Program(baseVertexShader, transitionVelocityShader);
-const transitionDensityProgram = new Program(baseVertexShader, transitionDensityShader);
 const colorProgram = new Program(baseVertexShader, colorShader);
 const checkerboardProgram = new Program(baseVertexShader, checkerboardShader);
 const bloomPrefilterProgram = new Program(baseVertexShader, bloomPrefilterShader);
@@ -919,6 +923,7 @@ const sunraysMaskProgram = new Program(baseVertexShader, sunraysMaskShader);
 const sunraysProgram = new Program(baseVertexShader, sunraysShader);
 const splatProgram = new Program(baseVertexShader, splatShader);
 const advectionProgram = new Program(baseVertexShader, advectionShader);
+const ebbAdvectionProgram = new Program(baseVertexShader, ebbAdvectionShader);
 const divergenceProgram = new Program(baseVertexShader, divergenceShader);
 const curlProgram = new Program(baseVertexShader, curlShader);
 const vorticityProgram = new Program(baseVertexShader, vorticityShader);
@@ -965,6 +970,7 @@ function initBloomFramebuffers() {
 	bloom = createFBO(res.width, res.height, rgba.internalFormat, rgba.format, texType, filtering);
 
 	bloomFramebuffers.length = 0;
+	bloomReady = false;
 	for (let i = 0; i < config.BLOOM_ITERATIONS; i++) {
 		let width = res.width >> (i + 1);
 		let height = res.height >> (i + 1);
@@ -985,6 +991,7 @@ function initSunraysFramebuffers() {
 
 	sunrays = createFBO(res.width, res.height, r.internalFormat, r.format, texType, filtering);
 	sunraysTemp = createFBO(res.width, res.height, r.internalFormat, r.format, texType, filtering);
+	sunraysReady = false;
 }
 
 function createFBO(w, h, internalFormat, format, type, param) {
@@ -1271,6 +1278,7 @@ const initBackground = () => {
 	canvas.dataset.fluidQualityDowngraded = 'false'
 	canvas.dataset.fluidRuntimeProbeState = config.RUNTIME_QUALITY_FALLBACK ? 'warming' : 'disabled'
 	canvas.dataset.fluidIdleCadence = String(config.IDLE_SIMULATION_RATE || 1)
+	canvas.dataset.fluidPostProcessMode = config.TEMPORAL_POST_PROCESS ? 'interleaved-cache' : 'every-frame'
 	changeColor()
 	updateKeywords();
 	initFramebuffers();
@@ -1500,38 +1508,45 @@ function step(dt, activeTransition) {
 
 	gl.viewport(0, 0, dye.width, dye.height);
 
+	const dyeAdvectionProgram = activeTransition ? ebbAdvectionProgram : advectionProgram;
+	dyeAdvectionProgram.bind();
+	gl.uniform2f(dyeAdvectionProgram.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
 	if (!ext.supportLinearFiltering)
-		gl.uniform2f(advectionProgram.uniforms.dyeTexelSize, dye.texelSizeX, dye.texelSizeY);
-	gl.uniform1i(advectionProgram.uniforms.uVelocity, velocity.read.attach(0));
-	gl.uniform1i(advectionProgram.uniforms.uSource, dye.read.attach(1));
-	gl.uniform1f(advectionProgram.uniforms.dissipation, config.DENSITY_DISSIPATION);
-	gl.uniform1f(advectionProgram.uniforms.openBoundary, activeTransition ? 1 : 0);
-	blit(dye.write.fbo);
-	dye.swap();
-
+		gl.uniform2f(dyeAdvectionProgram.uniforms.dyeTexelSize, dye.texelSizeX, dye.texelSizeY);
+	gl.uniform1i(dyeAdvectionProgram.uniforms.uVelocity, velocity.read.attach(0));
+	gl.uniform1i(dyeAdvectionProgram.uniforms.uSource, dye.read.attach(1));
+	gl.uniform1f(dyeAdvectionProgram.uniforms.dt, dt);
+	gl.uniform1f(dyeAdvectionProgram.uniforms.dissipation, config.DENSITY_DISSIPATION);
+	gl.uniform1f(dyeAdvectionProgram.uniforms.openBoundary, activeTransition ? 1 : 0);
 	if (activeTransition) {
-		transitionDensityProgram.bind();
-		gl.uniform1i(transitionDensityProgram.uniforms.uTexture, dye.read.attach(0));
-		gl.uniform1f(transitionDensityProgram.uniforms.aspectRatio, canvas.width / Math.max(1, canvas.height));
-		gl.uniform1f(transitionDensityProgram.uniforms.progress, activeTransition.progress);
-		gl.uniform1f(transitionDensityProgram.uniforms.dt, dt);
+		gl.uniform1f(dyeAdvectionProgram.uniforms.ebbAspectRatio, canvas.width / Math.max(1, canvas.height));
+		gl.uniform1f(dyeAdvectionProgram.uniforms.ebbProgress, activeTransition.progress);
+		gl.uniform1f(dyeAdvectionProgram.uniforms.ebbDt, dt);
 		gl.uniform2f(
-			transitionDensityProgram.uniforms.transitionCenter,
+			dyeAdvectionProgram.uniforms.ebbCenter,
 			activeTransition.originPoint.x,
 			activeTransition.originPoint.y
 		);
-		blit(dye.write.fbo);
-		dye.swap();
 	}
+	blit(dye.write.fbo);
+	dye.swap();
 }
 
 function render(target) {
-	if (config.BLOOM)
+	const temporalPostProcess = target == null && config.TEMPORAL_POST_PROCESS !== false;
+	const refreshBloom = config.BLOOM && (!temporalPostProcess || !bloomReady || postProcessFrame % 2 === 0);
+	const refreshSunrays = config.SUNRAYS && (!temporalPostProcess || !sunraysReady || postProcessFrame % 2 === 1);
+	if (refreshBloom) {
 		applyBloom(dye.read, bloom);
-	if (config.SUNRAYS) {
+		bloomReady = true;
+	}
+	if (refreshSunrays) {
 		applySunrays(dye.read, dye.write, sunrays);
 		blur(sunrays, sunraysTemp, 1);
+		sunraysReady = true;
 	}
+	if (temporalPostProcess)
+		postProcessFrame = (postProcessFrame + 1) % 2;
 
 	if (target == null && fluidTransition) {
 		gl.bindFramebuffer(gl.FRAMEBUFFER, null);

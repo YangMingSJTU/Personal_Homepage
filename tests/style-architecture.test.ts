@@ -64,6 +64,8 @@ describe("style architecture", () => {
     expect(introHero).toContain('data-fluid-transition-distribution="existing-fluid-no-injection"');
     expect(introHero).toContain('data-fluid-transition-reveal="density-evacuation-board-reveal"');
     expect(introHero).toContain('data-fluid-transition-capture="irregular-front-edge-absorption"');
+    expect(introHero).toContain('data-fluid-transition-density-pass="fused-advection"');
+    expect(introHero).toContain('data-fluid-post-process-mode="interleaved-cache"');
     expect(introHero).toContain('data-fluid-transition-color="hue-preserving-tone-map"');
     expect(introHero).toContain('data-fluid-transition-palette="original-fluid-hues"');
     expect(introHero).not.toContain("data-fluid-transition-core");
@@ -144,8 +146,16 @@ describe("style architecture", () => {
     expect(fluidVendor).toContain("result *= mix(1.0, withinBounds, openBoundary)");
     expect(fluidVendor).not.toContain("createSeededTransitionRandom");
     expect(fluidVendor).toContain("float densityMask = mix(1.0, fluidPresence, densityReveal)");
-    expect(fluidVendor).toContain("transitionDensityShader");
-    expect(fluidVendor).toContain("transitionDensityProgram");
+    expect(fluidVendor).toContain("vec4 applyEbbRetention (vec4 density)");
+    expect(fluidVendor).toContain("result = applyEbbRetention(result)");
+    expect(fluidVendor).toContain("const ebbAdvectionProgram = new Program(baseVertexShader, ebbAdvectionShader)");
+    expect(fluidVendor).toContain("const dyeAdvectionProgram = activeTransition ? ebbAdvectionProgram : advectionProgram");
+    expect(fluidVendor).not.toContain("uniform float ebbActive");
+    expect(fluidVendor).not.toContain("transitionDensityShader");
+    expect(fluidVendor).not.toContain("transitionDensityProgram");
+    expect(fluidVendor).toContain("const refreshBloom = config.BLOOM");
+    expect(fluidVendor).toContain("const refreshSunrays = config.SUNRAYS");
+    expect(fluidVendor).toContain("postProcessFrame = (postProcessFrame + 1) % 2");
     expect(fluidVendor).toContain("float frontRadius = mix(0.012, viewportRadius, easedTide) + irregularity");
     expect(fluidVendor).toContain("float harmonicThree = direction.x * (directionX2 - 3.0 * directionY2)");
     expect(fluidVendor).toContain("float edgeCapture = (1.0 - smoothstep(0.018, 0.13, edgeDistance))");

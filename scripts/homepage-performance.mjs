@@ -65,7 +65,12 @@ async function readProbe() {
   }));
 }
 
-await page.goto(targetUrl, { waitUntil: "networkidle" });
+await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+await page.waitForFunction(
+  () => document.querySelector("[data-webgl-fluid-background]")?.getAttribute("data-fluid-render-state") === "running",
+  undefined,
+  { timeout: 10000 }
+);
 await page.waitForTimeout(900);
 
 await resetProbe();
