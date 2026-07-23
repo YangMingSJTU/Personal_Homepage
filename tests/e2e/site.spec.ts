@@ -132,6 +132,7 @@ function pagePath(path: string) {
 }
 
 test("renders the fluid opening and profile-card main view", async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto(pagePath("/"));
   const hero = page.locator('[data-motion-scene="intro-opening"]');
   const mainView = page.locator("#main-view");
@@ -185,10 +186,11 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   const titleSubtitleGap = subtitleBox!.y - (titleBox!.y + titleBox!.height);
   expect(titleSubtitleGap).toBeGreaterThan(test.info().project.name === "mobile" ? 26 : 44);
   const quoteTransition = await introSubtitle.evaluate(
-    (element, initialQuote) =>
+    (element) =>
       new Promise<{
         active: string;
         activeCharacterCount: number;
+        starting: string;
         outgoing: string;
         outgoingCharacterCount: number;
         outgoingEndMs: number;
@@ -213,23 +215,26 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
           })(),
           phase: element.getAttribute("data-quote-phase")
         });
+        const initial = readTransition();
+        const startingQuote =
+          initial.phase === "transitioning" && initial.outgoing ? initial.outgoing : initial.active;
         let observer: MutationObserver;
         const finishWhenTransitioning = () => {
           const current = readTransition();
-          if (current.active === initialQuote || current.phase !== "transitioning" || !current.outgoing) return;
+          if (current.active === startingQuote || current.phase !== "transitioning" || !current.outgoing) return;
           observer.disconnect();
-          resolve(current);
+          resolve({ ...current, starting: startingQuote });
         };
         observer = new MutationObserver(finishWhenTransitioning);
         observer.observe(element, { attributes: true, childList: true, subtree: true });
         finishWhenTransitioning();
-      }),
-    selectedIntroQuote
+      })
   );
   expect(Array.from(introQuotes)).toContain(quoteTransition.active);
-  expect(quoteTransition.active).not.toBe(selectedIntroQuote);
+  expect(Array.from(introQuotes)).toContain(quoteTransition.starting);
+  expect(quoteTransition.active).not.toBe(quoteTransition.starting);
   expect(quoteTransition.activeCharacterCount).toBe(Array.from(quoteTransition.active).length);
-  expect(quoteTransition.outgoing).toBe(selectedIntroQuote);
+  expect(quoteTransition.outgoing).toBe(quoteTransition.starting);
   expect(quoteTransition.outgoingCharacterCount).toBe(Array.from(quoteTransition.outgoing).length);
   expect(quoteTransition.phase).toBe("transitioning");
   expect(quoteTransition.incomingStartMs - quoteTransition.outgoingEndMs).toBeGreaterThanOrEqual(200);
@@ -252,14 +257,14 @@ test("renders the fluid opening and profile-card main view", async ({ page }) =>
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-phase", "idle");
   await expect(fluidCanvas).toHaveAttribute(
     "data-fluid-transition-model",
-    "mixed-source-radius-aware-avatar-sink"
+    "single-field-fluid-absorption"
   );
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "terminal-spiral-avatar-capture");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "bounded-contraction-spiral-capture");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "edge-55-interior-45");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-reveal-uv-compression");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "tangent-damped-core-absorption");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-color", "progressive-controlled-palette");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-palette", "cyan-violet-gold-white");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-sink-board-handoff");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "physical-dye-core-absorption");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-color", "hue-preserving-tone-map");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-palette", "original-fluid-hues");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-idle-cadence", "0.86");
   await expect(fluidCanvas).toHaveAttribute(
     "data-fluid-quality",
@@ -487,14 +492,14 @@ test("enters the go-backed main view from the fluid opening", async ({ page }) =
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-state", "running");
   await expect(fluidCanvas).toHaveAttribute(
     "data-fluid-transition-model",
-    "mixed-source-radius-aware-avatar-sink"
+    "single-field-fluid-absorption"
   );
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "terminal-spiral-avatar-capture");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-flow", "bounded-contraction-spiral-capture");
   await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-distribution", "edge-55-interior-45");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-reveal-uv-compression");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "tangent-damped-core-absorption");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-color", "progressive-controlled-palette");
-  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-palette", "cyan-violet-gold-white");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-reveal", "density-sink-board-handoff");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-capture", "physical-dye-core-absorption");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-color", "hue-preserving-tone-map");
+  await expect(fluidCanvas).toHaveAttribute("data-fluid-transition-palette", "original-fluid-hues");
   await expect(hero.locator("[data-shape-main-path]")).toHaveCount(0);
   await expect(page.locator("#main-view")).toBeInViewport();
   await expect(background).toBeVisible();

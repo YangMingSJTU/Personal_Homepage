@@ -377,6 +377,7 @@ const transitionVelocityShader = compileShader(gl.FRAGMENT_SHADER, `
     uniform float aspectRatio;
     uniform float progress;
     uniform float dt;
+    uniform float resolutionScale;
     uniform vec2 transitionCenter;
 
     void main () {
@@ -386,34 +387,41 @@ const transitionVelocityShader = compileShader(gl.FRAGMENT_SHADER, `
         float distanceToCenter = max(length(physicalOffset), 0.001);
         vec2 radial = physicalOffset / distanceToCenter;
         vec2 clockwise = vec2(radial.y, -radial.x);
-        vec2 physicalVelocity = vec2(velocity.x * aspectRatio, velocity.y);
-
-        float terminalProgress = smoothstep(0.62, 0.94, progress);
-        float captureZone = 1.0 - smoothstep(0.03, 0.20, distanceToCenter);
-        float coreZone = 1.0 - smoothstep(0.02, 0.07, distanceToCenter);
-        float radialVelocity = dot(physicalVelocity, radial);
-        float tangentialVelocity = dot(physicalVelocity, clockwise);
-        float inwardVelocity = min(radialVelocity, 0.0);
-        float outwardVelocity = max(radialVelocity, 0.0);
-        tangentialVelocity *= 1.0 - terminalProgress * mix(0.45, 0.90, captureZone);
-        outwardVelocity *= 1.0 - captureZone * terminalProgress * 0.88;
-        inwardVelocity *= 1.0 - coreZone * terminalProgress * 0.82;
-        physicalVelocity = radial * (inwardVelocity + outwardVelocity) + clockwise * tangentialVelocity;
-
-        float spiralProgress = smoothstep(0.0, 0.92, progress);
-        float farZone = smoothstep(0.42, 1.08, distanceToCenter);
-        float swirlStrength = mix(720.0, 300.0, spiralProgress)
-            * mix(1.04, 0.66, farZone)
-            * mix(1.0, 0.08, terminalProgress);
-        float sinkStrength = mix(740.0, 2400.0, smoothstep(0.0, 0.95, progress))
-            * mix(0.94, 1.22, farZone);
-        float coreForceGate = smoothstep(0.02, 0.08, distanceToCenter);
-        vec2 physicalForce = clockwise * swirlStrength + (-radial) * sinkStrength;
-        physicalForce *= coreForceGate * mix(0.92, 1.08, farZone);
-        physicalVelocity += physicalForce * dt;
-        velocity = vec2(physicalVelocity.x / aspectRatio, physicalVelocity.y);
+        float contractionRate = mix(0.72, 2.35, smoothstep(0.06, 0.90, progress));
+        float angularRate = mix(0.58, 0.05, smoothstep(0.28, 0.92, progress));
+        float coreGate = smoothstep(0.012, 0.05, distanceToCenter);
+        vec2 targetVelocity = (
+            -radial * contractionRate + clockwise * angularRate
+        ) * distanceToCenter * resolutionScale * coreGate;
+        float steeringRate = mix(2.8, 9.0, smoothstep(0.12, 0.90, progress));
+        float steering = 1.0 - exp(-steeringRate * dt);
+        velocity = mix(velocity, targetVelocity, steering);
 
         gl_FragColor = vec4(velocity, 0.0, 1.0);
+    }
+`);
+
+const transitionDensityShader = compileShader(gl.FRAGMENT_SHADER, `
+    precision highp float;
+    precision highp sampler2D;
+
+    varying vec2 vUv;
+    uniform sampler2D uTexture;
+    uniform float aspectRatio;
+    uniform float progress;
+    uniform float dt;
+    uniform vec2 transitionCenter;
+
+    void main () {
+        vec4 density = texture2D(uTexture, vUv);
+        vec2 offset = vUv - transitionCenter;
+        offset.x *= aspectRatio;
+        float distanceToCenter = length(offset);
+        float captureProgress = smoothstep(0.46, 0.94, progress);
+        float coreCapture = 1.0 - smoothstep(0.03, 0.10, distanceToCenter);
+        float absorptionRate = coreCapture * mix(0.0, 14.0, captureProgress);
+        float retention = exp(-absorptionRate * dt);
+        gl_FragColor = density * retention;
     }
 `);
 
@@ -472,19 +480,13 @@ const displayShaderSource = `
     }
 
     void main () {
-        float terminalPull = smoothstep(0.74, 0.97, transitionProgress);
-        float compressionScale = mix(1.0, 0.18, terminalPull);
-        vec2 sampleUv = transitionActive > 0.5
-            ? transitionCenter + (vUv - transitionCenter) / compressionScale
-            : vUv;
-        vec2 sampleTexelSize = texelSize / compressionScale;
-        vec3 c = texture2D(uTexture, sampleUv).rgb;
+        vec3 c = texture2D(uTexture, vUv).rgb;
 
     #ifdef SHADING
-        vec3 lc = texture2D(uTexture, sampleUv - vec2(sampleTexelSize.x, 0.0)).rgb;
-        vec3 rc = texture2D(uTexture, sampleUv + vec2(sampleTexelSize.x, 0.0)).rgb;
-        vec3 tc = texture2D(uTexture, sampleUv + vec2(0.0, sampleTexelSize.y)).rgb;
-        vec3 bc = texture2D(uTexture, sampleUv - vec2(0.0, sampleTexelSize.y)).rgb;
+        vec3 lc = texture2D(uTexture, vL).rgb;
+        vec3 rc = texture2D(uTexture, vR).rgb;
+        vec3 tc = texture2D(uTexture, vT).rgb;
+        vec3 bc = texture2D(uTexture, vB).rgb;
 
         float dx = length(rc) - length(lc);
         float dy = length(tc) - length(bc);
@@ -497,11 +499,11 @@ const displayShaderSource = `
     #endif
 
     #ifdef BLOOM
-        vec3 bloom = texture2D(uBloom, sampleUv).rgb;
+        vec3 bloom = texture2D(uBloom, vUv).rgb;
     #endif
 
     #ifdef SUNRAYS
-        float sunrays = texture2D(uSunrays, sampleUv).r;
+        float sunrays = texture2D(uSunrays, vUv).r;
         c *= sunrays;
     #ifdef BLOOM
         bloom *= sunrays;
@@ -520,39 +522,23 @@ const displayShaderSource = `
         if (transitionActive > 0.5) {
             float materialReveal = smoothstep(0.1, 0.42, transitionProgress);
             float densityReveal = smoothstep(0.12, 0.62, transitionProgress);
-            float colorGradeStrength = smoothstep(0.50, 0.80, transitionProgress);
-            vec3 cyanPalette = vec3(0.2196, 0.7490, 0.8196);
-            vec3 violetPalette = vec3(0.4588, 0.4039, 0.8471);
-            vec3 goldPalette = vec3(0.9176, 0.7961, 0.5098);
-            vec3 whitePalette = vec3(0.9333, 0.9608, 0.9804);
-            float coolPaletteMix = smoothstep(0.08, 0.92, clamp(a, 0.0, 1.0));
-            vec3 controlledPalette = mix(violetPalette, cyanPalette, coolPaletteMix);
             vec2 coreOffset = vUv - transitionCenter;
             coreOffset.x *= transitionAspectRatio;
             float coreDistance = length(coreOffset);
-            float coreColorInfluence = smoothstep(0.78, 0.98, transitionProgress)
-                * (1.0 - smoothstep(0.04, 0.20, coreDistance));
-            vec3 corePalette = mix(goldPalette, whitePalette, smoothstep(0.88, 1.0, transitionProgress));
-            controlledPalette = mix(controlledPalette, corePalette, coreColorInfluence);
-            float paletteMaximum = max(
-                controlledPalette.r,
-                max(controlledPalette.g, controlledPalette.b)
-            );
-            float controlledEnergy = min(a, mix(1.45, 1.15, coreColorInfluence));
-            vec3 gradedColor = controlledPalette * (controlledEnergy / max(paletteMaximum, 0.001));
-            c = mix(c, gradedColor, colorGradeStrength);
+            float coreColorInfluence = smoothstep(0.54, 0.94, transitionProgress)
+                * (1.0 - smoothstep(0.03, 0.14, coreDistance));
+            float luminance = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            float desaturation = coreColorInfluence * 0.20;
+            c = mix(c, vec3(luminance), desaturation);
+            float colorEnergy = max(c.r, max(c.g, c.b));
+            float toneMappedEnergy = colorEnergy / (1.0 + 0.35 * colorEnergy);
+            float toneMapStrength = smoothstep(0.50, 0.86, transitionProgress);
+            float toneMapScale = toneMappedEnergy / max(colorEnergy, 0.001);
+            c *= mix(1.0, toneMapScale, toneMapStrength);
             float fluidPresence = smoothstep(0.008, 0.105, a);
             float densityMask = mix(1.0, fluidPresence, densityReveal);
-            float edgeDistance = min(
-                min(sampleUv.x, sampleUv.y),
-                min(1.0 - sampleUv.x, 1.0 - sampleUv.y)
-            );
-            float compressedBounds = smoothstep(-0.002, 0.04, edgeDistance);
-            float sampleBounds = mix(1.0, compressedBounds, terminalPull);
-            float coreOpacity = 1.0 - smoothstep(0.97, 1.0, transitionProgress);
-            float alpha = densityMask * sampleBounds * coreOpacity;
             vec3 transitionColor = c + transitionBackground * (1.0 - materialReveal);
-            gl_FragColor = vec4(transitionColor * alpha, alpha);
+            gl_FragColor = vec4(transitionColor * densityMask, densityMask);
         }
         else {
             gl_FragColor = vec4(c, a);
@@ -703,6 +689,7 @@ const advectionShader = compileShader(gl.FRAGMENT_SHADER, `
     uniform vec2 dyeTexelSize;
     uniform float dt;
     uniform float dissipation;
+    uniform float openBoundary;
 
     vec4 bilerp (sampler2D sam, vec2 uv, vec2 tsize) {
         vec2 st = uv / tsize - 0.5;
@@ -726,6 +713,11 @@ const advectionShader = compileShader(gl.FRAGMENT_SHADER, `
         vec2 coord = vUv - dt * texture2D(uVelocity, vUv).xy * texelSize;
         vec4 result = texture2D(uSource, coord);
     #endif
+        float withinBounds = step(0.0, coord.x)
+            * step(coord.x, 1.0)
+            * step(0.0, coord.y)
+            * step(coord.y, 1.0);
+        result *= mix(1.0, withinBounds, openBoundary);
         float decay = 1.0 + dissipation * dt;
         gl_FragColor = result / decay;
     }`,
@@ -895,6 +887,7 @@ const blurProgram = new Program(blurVertexShader, blurShader);
 const copyProgram = new Program(baseVertexShader, copyShader);
 const clearProgram = new Program(baseVertexShader, clearShader);
 const transitionVelocityProgram = new Program(baseVertexShader, transitionVelocityShader);
+const transitionDensityProgram = new Program(baseVertexShader, transitionDensityShader);
 const colorProgram = new Program(baseVertexShader, colorShader);
 const checkerboardProgram = new Program(baseVertexShader, checkerboardShader);
 const bloomPrefilterProgram = new Program(baseVertexShader, bloomPrefilterShader);
@@ -1169,23 +1162,6 @@ function invokeTransitionCallback(callback, value) {
 	}
 }
 
-const transitionColorPalette = [
-	{ r: 0x38 / 255, g: 0xbf / 255, b: 0xd1 / 255 },
-	{ r: 0x75 / 255, g: 0x67 / 255, b: 0xd8 / 255 },
-	{ r: 0xea / 255, g: 0xcb / 255, b: 0x82 / 255 },
-	{ r: 0xee / 255, g: 0xf5 / 255, b: 0xfa / 255 }
-];
-
-function getTransitionSplatColor(index) {
-	const paletteColor = transitionColorPalette[index % transitionColorPalette.length];
-	const baseIntensity = 0.15;
-	return {
-		r: paletteColor.r * baseIntensity,
-		g: paletteColor.g * baseIntensity,
-		b: paletteColor.b * baseIntensity
-	};
-}
-
 function injectTransitionSplat(state, index) {
 	const edgeCount = Math.round(state.injectionCount * 0.55);
 	let x;
@@ -1237,11 +1213,11 @@ function injectTransitionSplat(state, index) {
 	const farMix = clamp01((distance - 0.28) / 0.82);
 	const clockwiseWeight = 0.72 - farMix * 0.26;
 	const inwardWeight = 0.74 + farMix * 0.2;
-	const force = 860 + state.random() * 520;
+	const force = 18 + state.random() * 14;
 	const dx = (clockwiseX * clockwiseWeight + inwardX * inwardWeight) * force;
 	const dy = (clockwiseY * clockwiseWeight + inwardY * inwardWeight) * force;
-	const color = getTransitionSplatColor(index);
-	const colorBoost = 6.5 + state.random() * 3.5;
+	const color = generateColor();
+	const colorBoost = 1.5 + state.random() * 0.7;
 	color.r *= colorBoost;
 	color.g *= colorBoost;
 	color.b *= colorBoost;
@@ -1566,6 +1542,7 @@ function step(dt, activeTransition) {
 		gl.uniform1f(transitionVelocityProgram.uniforms.aspectRatio, canvas.width / Math.max(1, canvas.height));
 		gl.uniform1f(transitionVelocityProgram.uniforms.progress, activeTransition.progress);
 		gl.uniform1f(transitionVelocityProgram.uniforms.dt, dt);
+		gl.uniform1f(transitionVelocityProgram.uniforms.resolutionScale, velocity.height);
 		gl.uniform2f(
 			transitionVelocityProgram.uniforms.transitionCenter,
 			activeTransition.sinkPoint.x,
@@ -1584,6 +1561,7 @@ function step(dt, activeTransition) {
 	gl.uniform1i(advectionProgram.uniforms.uSource, velocityId);
 	gl.uniform1f(advectionProgram.uniforms.dt, dt);
 	gl.uniform1f(advectionProgram.uniforms.dissipation, config.VELOCITY_DISSIPATION);
+	gl.uniform1f(advectionProgram.uniforms.openBoundary, activeTransition ? 1 : 0);
 	blit(velocity.write.fbo);
 	velocity.swap();
 
@@ -1594,8 +1572,24 @@ function step(dt, activeTransition) {
 	gl.uniform1i(advectionProgram.uniforms.uVelocity, velocity.read.attach(0));
 	gl.uniform1i(advectionProgram.uniforms.uSource, dye.read.attach(1));
 	gl.uniform1f(advectionProgram.uniforms.dissipation, config.DENSITY_DISSIPATION);
+	gl.uniform1f(advectionProgram.uniforms.openBoundary, activeTransition ? 1 : 0);
 	blit(dye.write.fbo);
 	dye.swap();
+
+	if (activeTransition) {
+		transitionDensityProgram.bind();
+		gl.uniform1i(transitionDensityProgram.uniforms.uTexture, dye.read.attach(0));
+		gl.uniform1f(transitionDensityProgram.uniforms.aspectRatio, canvas.width / Math.max(1, canvas.height));
+		gl.uniform1f(transitionDensityProgram.uniforms.progress, activeTransition.progress);
+		gl.uniform1f(transitionDensityProgram.uniforms.dt, dt);
+		gl.uniform2f(
+			transitionDensityProgram.uniforms.transitionCenter,
+			activeTransition.sinkPoint.x,
+			activeTransition.sinkPoint.y
+		);
+		blit(dye.write.fbo);
+		dye.swap();
+	}
 }
 
 function render(target) {

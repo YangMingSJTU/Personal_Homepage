@@ -3,18 +3,11 @@ import {
   FLUID_AVATAR_REVEAL_END,
   FLUID_AVATAR_REVEAL_START,
   FLUID_REFERENCE_IDLE_CADENCE,
-  FLUID_TERMINAL_CORE_FADE_START,
-  FLUID_TERMINAL_MIN_SCALE,
-  FLUID_TERMINAL_PULL_END,
-  FLUID_TERMINAL_PULL_START,
   FLUID_TRANSITION_DURATION,
   FLUID_TRANSITION_TIMELINE,
   getFluidInjectionCount,
   getInjectedFluidCount,
   resolveFluidAvatarOpacity,
-  resolveFluidTerminalCompressionScale,
-  resolveFluidTerminalCoreOpacity,
-  resolveFluidTerminalPull,
   resolveFluidTransitionPhase,
   resolveFluidTransitionProgress
 } from "@/components/hero/fluidTransition";
@@ -62,25 +55,4 @@ describe("fluid vortex transition", () => {
     expect(samples.every((value, index) => index === 0 || value >= samples[index - 1])).toBe(true);
   });
 
-  it("compresses terminal fluid continuously before fading only the captured core", () => {
-    const progressSamples = Array.from({ length: 101 }, (_, index) => index / 100);
-    const pullSamples = progressSamples.map(resolveFluidTerminalPull);
-    const scaleSamples = progressSamples.map(resolveFluidTerminalCompressionScale);
-    const opacitySamples = progressSamples.map(resolveFluidTerminalCoreOpacity);
-
-    expect(FLUID_TERMINAL_PULL_START).toBe(0.74);
-    expect(FLUID_TERMINAL_PULL_END).toBe(0.97);
-    expect(FLUID_TERMINAL_MIN_SCALE).toBe(0.18);
-    expect(FLUID_TERMINAL_CORE_FADE_START).toBe(0.97);
-    expect(resolveFluidTerminalPull(FLUID_TERMINAL_PULL_START)).toBe(0);
-    expect(resolveFluidTerminalPull(FLUID_TERMINAL_PULL_END)).toBe(1);
-    expect(resolveFluidTerminalCompressionScale(FLUID_TERMINAL_PULL_START)).toBe(1);
-    expect(resolveFluidTerminalCompressionScale(FLUID_TERMINAL_PULL_END)).toBeCloseTo(FLUID_TERMINAL_MIN_SCALE);
-    expect(resolveFluidTerminalCoreOpacity(FLUID_TERMINAL_CORE_FADE_START)).toBe(1);
-    expect(resolveFluidTerminalCoreOpacity(1)).toBe(0);
-    expect(pullSamples.every((value, index) => index === 0 || value >= pullSamples[index - 1])).toBe(true);
-    expect(scaleSamples.every((value, index) => index === 0 || value <= scaleSamples[index - 1])).toBe(true);
-    expect(scaleSamples.every((value) => value >= FLUID_TERMINAL_MIN_SCALE && value <= 1)).toBe(true);
-    expect(opacitySamples.every((value, index) => index === 0 || value <= opacitySamples[index - 1])).toBe(true);
-  });
 });
